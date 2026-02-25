@@ -11,7 +11,6 @@ import requests
 
 from obsidian_clipper.config import Config
 from obsidian_clipper.exceptions import (
-    APIConnectionError,
     APIRequestError,
     PathSecurityError,
 )
@@ -397,7 +396,7 @@ class TestObsidianClient:
 
         with patch("obsidian_clipper.obsidian.api.HTTPAdapter") as mock_http_adapter:
             mock_http_adapter.return_value = mock_adapter
-            session = client._get_session()
+            client._get_session()
 
             # Verify HTTPAdapter was called with pooling config
             mock_http_adapter.assert_called_once()
@@ -411,7 +410,7 @@ class TestObsidianClient:
         mock_session_instance = MagicMock()
         mock_session.return_value = mock_session_instance
 
-        session = client._get_session()
+        client._get_session()
 
         # Verify keep-alive header was added
         mock_session_instance.headers.update.assert_called()

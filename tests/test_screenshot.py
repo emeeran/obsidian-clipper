@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -200,7 +199,7 @@ class TestCaptureWithFlameshot:
         # First call fails, second call succeeds
         mock_run.side_effect = [CommandError("failed"), None]
 
-        result = _capture_with_flameshot("/tmp/test.png")
+        _capture_with_flameshot("/tmp/test.png")
 
         assert mock_run.call_count == 2
 
