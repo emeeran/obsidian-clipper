@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Import from cli.main module directly using absolute import
+# This avoids confusion with cli.__init__ which exports 'main' as a function
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,9 +12,18 @@ import pytest
 
 from obsidian_clipper.capture import Citation, SourceType
 from obsidian_clipper.cli.args import parse_args
-from obsidian_clipper.cli.main import main, validate_config
 from obsidian_clipper.exceptions import ConfigurationError
 from obsidian_clipper.workflow import CaptureSession, prepare_capture_session
+
+if "obsidian_clipper.cli.main" in sys.modules:
+    cli_main_module = sys.modules["obsidian_clipper.cli.main"]
+else:
+    import importlib
+
+    cli_main_module = importlib.import_module("obsidian_clipper.cli.main")
+
+main = cli_main_module.main
+validate_config = cli_main_module.validate_config
 
 
 class TestCaptureSession:
