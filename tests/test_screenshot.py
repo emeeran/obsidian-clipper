@@ -84,22 +84,30 @@ class TestWaitForFile:
 class TestTakeScreenshot:
     """Tests for take_screenshot function."""
 
+    @patch("obsidian_clipper.capture.screenshot.Path.exists")
     @patch("obsidian_clipper.capture.screenshot._capture_with_flameshot")
-    def test_take_screenshot_auto_uses_flameshot_first(self, mock_flameshot):
+    def test_take_screenshot_auto_uses_flameshot_first(
+        self, mock_flameshot, mock_exists
+    ):
         """Test auto mode tries flameshot first."""
         mock_flameshot.return_value = True
+        mock_exists.return_value = True
 
         result = take_screenshot("/tmp/test.png", tool="auto")
 
         assert result is True
         mock_flameshot.assert_called_once_with("/tmp/test.png")
 
+    @patch("obsidian_clipper.capture.screenshot.Path.exists")
     @patch("obsidian_clipper.capture.screenshot._capture_with_grim")
     @patch("obsidian_clipper.capture.screenshot._capture_with_flameshot")
-    def test_take_screenshot_auto_falls_back_to_grim(self, mock_flameshot, mock_grim):
+    def test_take_screenshot_auto_falls_back_to_grim(
+        self, mock_flameshot, mock_grim, mock_exists
+    ):
         """Test auto mode falls back to grim if flameshot fails."""
         mock_flameshot.return_value = False
         mock_grim.return_value = True
+        mock_exists.return_value = True
 
         result = take_screenshot("/tmp/test.png", tool="auto")
 
@@ -119,10 +127,12 @@ class TestTakeScreenshot:
         with pytest.raises(ScreenshotError, match="No compatible screenshot tool"):
             take_screenshot("/tmp/test.png", tool="auto")
 
+    @patch("obsidian_clipper.capture.screenshot.Path.exists")
     @patch("obsidian_clipper.capture.screenshot._capture_with_flameshot")
-    def test_take_screenshot_flameshot_mode(self, mock_flameshot):
+    def test_take_screenshot_flameshot_mode(self, mock_flameshot, mock_exists):
         """Test explicit flameshot mode."""
         mock_flameshot.return_value = True
+        mock_exists.return_value = True
 
         result = take_screenshot("/tmp/test.png", tool="flameshot")
 
@@ -136,10 +146,12 @@ class TestTakeScreenshot:
         with pytest.raises(ScreenshotError, match="Flameshot capture failed"):
             take_screenshot("/tmp/test.png", tool="flameshot")
 
+    @patch("obsidian_clipper.capture.screenshot.Path.exists")
     @patch("obsidian_clipper.capture.screenshot._capture_with_grim")
-    def test_take_screenshot_grim_mode(self, mock_grim):
+    def test_take_screenshot_grim_mode(self, mock_grim, mock_exists):
         """Test explicit grim mode."""
         mock_grim.return_value = True
+        mock_exists.return_value = True
 
         result = take_screenshot("/tmp/test.png", tool="grim")
 
