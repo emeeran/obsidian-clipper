@@ -1,0 +1,13 @@
+#!/bin/bash
+# Wrapper script for Obsidian Clipper
+# This allows the keyboard shortcut to work without the full uv command
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python"
+
+if [ -x "$PYTHON_BIN" ]; then
+	cd "$SCRIPT_DIR" || exit 1
+	exec "$PYTHON_BIN" -m obsidian_clipper "$@"
+fi
+
+exec /usr/bin/env python3 -m obsidian_clipper "$@"

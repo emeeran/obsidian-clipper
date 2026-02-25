@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""
+Wrapper script for Obsidian Clipper.
+This allows running from GNOME keyboard shortcuts
+without needing to specify full uv paths.
+"""
+
+import os
+import sys
+import subprocess
+
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = SCRIPT_DIR
+
+# Run the clipper with the screenshot flag
+subprocess.run(
+    [sys.executable, "uv", "run", "--directory", PROJECT_DIR, "obsidian-clipper", "-s"],
+    cwd=PROJECT_DIR
+)
