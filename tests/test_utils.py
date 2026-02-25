@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +17,7 @@ from obsidian_clipper.utils import (
     run_command_safely,
     run_command_with_fallback,
 )
+from obsidian_clipper.utils.retry import CircuitBreaker
 
 
 class TestRunCommandSafely:
@@ -149,3 +151,84 @@ class TestNotifications:
         """Test notify_error helper."""
         notify_error("Title", "Message")
         mock_notify.assert_called_once_with("Title", "Message", Urgency.CRITICAL)
+
+
+class TestCircuitBreaker:
+    """Tests for CircuitBreaker class."""
+
+    def test_initial_state_allows_attempts(self):
+        """Test circuit is closed initially."""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        assert cb.should_attempt() is True
+
+    def test_allows_attempts_below_threshold(self):
+        """Test circuit stays closed below failure threshold."""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.should_attempt() is True
+
+    def test_opens_at_threshold(self):
+        """Test circuit opens when failure threshold is reached."""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.should_attempt() is False
+
+    def test_success_clears_failures(self):
+        """Test success resets the circuit breaker."""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_success()
+        assert cb.should_attempt() is True
+        # Can record failures again after success
+        cb.record_failure()
+        assert cb.should_attempt() is True
+
+    def test_recovers_after_timeout(self):
+        """Test circuit recovers after recovery timeout."""
+        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1)
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.should_attempt() is False
+
+        # Wait for recovery timeout
+        time.sleep(0.15)
+        assert cb.should_attempt() is True
+
+    def test_failure_threshold_respects_maxlen(self):
+        """Test failure times deque respects maxlen."""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        # Record more than threshold
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        # Should still be open (deque keeps last 3)
+        assert cb.should_attempt() is False
+
+    def test_partial_recovery_stays_open(self):
+        """Test circuit stays open if timeout not reached."""
+        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=1.0)
+        cb.record_failure()
+        cb.record_failure()
+        # Small sleep, not enough for recovery
+        time.sleep(0.05)
+        assert cb.should_attempt() is False
+
+    def test_custom_threshold_and_timeout(self):
+        """Test custom threshold and timeout values."""
+        cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
+        assert cb.failure_threshold == 5
+        assert cb.recovery_timeout == 30.0
+
+    def test_multiple_success_calls_safe(self):
+        """Test calling success multiple times is safe."""
+        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+        cb.record_success()
+        cb.record_success()
+        cb.record_success()
+        assert cb.should_attempt() is True
