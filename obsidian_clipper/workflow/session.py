@@ -52,19 +52,14 @@ class CaptureSession:
         """
         parts = ["\n", f"### 📌 {self.timestamp}\n"]
 
-        # Build blockquote with text and OCR
-        has_text = self.text or self.ocr_text
+        # Build blockquote with text and OCR using list comprehensions
+        if self.text:
+            parts.extend(f"> {line}\n" for line in self.text.split("\n"))
 
-        if has_text:
+        if self.ocr_text:
             if self.text:
-                # Prefix each line with > for blockquote
-                for line in self.text.split("\n"):
-                    parts.append(f"> {line}\n")
-            if self.ocr_text:
-                if self.text:
-                    parts.append(">\n")
-                for line in self.ocr_text.split("\n"):
-                    parts.append(f"> {line}\n")
+                parts.append(">\n")
+            parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
 
         # Citation line (outside blockquote, with italics)
         if self.citation:

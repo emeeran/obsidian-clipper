@@ -83,15 +83,24 @@ class ObsidianClient:
         if self._session is None:
             self._session = requests.Session()
 
-            # Configure retry strategy
+            # Configure retry strategy with improved settings
             retry_strategy = Retry(
                 total=3,
-                backoff_factor=0.5,
+                backoff_factor=0.3,
                 status_forcelist=[429, 500, 502, 503, 504],
             )
-            adapter = HTTPAdapter(max_retries=retry_strategy)
+
+            # Configure connection pooling
+            adapter = HTTPAdapter(
+                max_retries=retry_strategy,
+                pool_connections=10,
+                pool_maxsize=20,
+            )
             self._session.mount("https://", adapter)
             self._session.mount("http://", adapter)
+
+            # Add keep-alive header for persistent connections
+            self._session.headers.update({"Connection": "keep-alive"})
 
         return self._session
 

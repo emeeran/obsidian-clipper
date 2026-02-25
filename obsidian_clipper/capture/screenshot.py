@@ -17,6 +17,30 @@ from ..utils.command import run_command_safely
 logger = logging.getLogger(__name__)
 
 
+def _wait_for_file(filepath: str | Path, timeout: float = 3.0) -> bool:
+    """Wait for file to exist with exponential backoff.
+
+    Args:
+        filepath: Path to wait for.
+        timeout: Maximum time to wait in seconds.
+
+    Returns:
+        True if file exists and has content, False otherwise.
+    """
+    filepath = Path(filepath)
+    start_time = time.time()
+    poll_interval = 0.05  # Start with 50ms
+    max_interval = 0.5  # Max 500ms between polls
+
+    while time.time() - start_time < timeout:
+        if filepath.exists() and filepath.stat().st_size > 0:
+            return True
+        time.sleep(poll_interval)
+        poll_interval = min(poll_interval * 1.5, max_interval)
+
+    return filepath.exists() and filepath.stat().st_size > 0
+
+
 def take_screenshot(
     filepath: str | Path,
     tool: str = "auto",
@@ -79,17 +103,8 @@ def _capture_with_flameshot(filepath: str) -> bool:
                 check=True,
             )
         # Some Flameshot setups return before the file is fully materialized.
-        # Wait briefly for file creation to avoid false negatives.
-        wait_seconds = 3.0
-        step_seconds = 0.1
-        attempts = int(wait_seconds / step_seconds)
-
-        for _ in range(attempts):
-            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-                return True
-            time.sleep(step_seconds)
-
-        if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+        # Wait with exponential backoff for file creation to avoid false negatives.
+        if _wait_for_file(filepath, timeout=3.0):
             return True
 
         # Fallback: some Flameshot workflows place the image on clipboard

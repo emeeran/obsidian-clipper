@@ -11,35 +11,41 @@ from .text import get_active_window_title
 
 logger = logging.getLogger(__name__)
 
+# Pre-compiled regex patterns for performance
 IGNORED_WINDOW_TITLE_PATTERNS = (
-    r"flameshot",
-    r"obsidian\s*clipper",
-    r"gnome\s*shell",
+    re.compile(r"flameshot", re.IGNORECASE),
+    re.compile(r"obsidian\s*clipper", re.IGNORECASE),
+    re.compile(r"gnome\s*shell", re.IGNORECASE),
 )
+
+PDF_EPUB_CONTEXT_PATTERN = re.compile(
+    r"(\.pdf\b|\.epub\b|Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)",
+    re.IGNORECASE,
+)
+
+PAGE_NUMBER_PATTERNS = [
+    re.compile(r"\b(?:page|p\.|pg\.)\s*(\d+)\b", re.IGNORECASE),
+    re.compile(r"\((\d+)\s*/\s*\d+\)", re.IGNORECASE),
+    re.compile(r"\b(\d+)\s*/\s*\d+\b", re.IGNORECASE),
+    re.compile(r"\b(\d+)\s+of\s+\d+\b", re.IGNORECASE),
+]
+
+TRAILING_PAGE_PATTERNS = [
+    re.compile(r"\s*[—\-–]\s*(?:page|p\.|pg\.)\s*\d+\s*$", re.IGNORECASE),
+    re.compile(r"\s*[—\-–]\s*\d+\s*/\s*\d+\s*$", re.IGNORECASE),
+    re.compile(r"\s*[—\-–]\s*\d+\s+of\s+\d+\s*$", re.IGNORECASE),
+]
 
 
 def _looks_like_pdf_or_epub_context(window_title: str) -> bool:
     """Check whether a title appears to come from PDF/EPUB context."""
-    return bool(
-        re.search(
-            r"(\.pdf\b|\.epub\b|Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)",
-            window_title,
-            re.IGNORECASE,
-        )
-    )
+    return bool(PDF_EPUB_CONTEXT_PATTERN.search(window_title))
 
 
 def _extract_page_number(text: str) -> str | None:
     """Extract page number from common reader title patterns."""
-    patterns = [
-        r"\b(?:page|p\.|pg\.)\s*(\d+)\b",
-        r"\((\d+)\s*/\s*\d+\)",
-        r"\b(\d+)\s*/\s*\d+\b",
-        r"\b(\d+)\s+of\s+\d+\b",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+    for pattern in PAGE_NUMBER_PATTERNS:
+        match = pattern.search(text)
         if match:
             return match.group(1)
     return None
@@ -47,14 +53,9 @@ def _extract_page_number(text: str) -> str | None:
 
 def _strip_trailing_page_segment(title: str) -> str:
     """Strip trailing page markers such as '— 44/320' from title."""
-    patterns = [
-        r"\s*[—\-–]\s*(?:page|p\.|pg\.)\s*\d+\s*$",
-        r"\s*[—\-–]\s*\d+\s*/\s*\d+\s*$",
-        r"\s*[—\-–]\s*\d+\s+of\s+\d+\s*$",
-    ]
     cleaned = title
-    for pattern in patterns:
-        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    for pattern in TRAILING_PAGE_PATTERNS:
+        cleaned = pattern.sub("", cleaned)
     return cleaned.strip()
 
 
@@ -414,10 +415,7 @@ CITATION_PARSERS = [
 
 def _is_ignored_window(window_title: str) -> bool:
     """Check if window title should be ignored."""
-    return any(
-        re.search(pattern, window_title, re.IGNORECASE)
-        for pattern in IGNORED_WINDOW_TITLE_PATTERNS
-    )
+    return any(pattern.search(window_title) for pattern in IGNORED_WINDOW_TITLE_PATTERNS)
 
 
 def _try_get_citation() -> Citation | None:

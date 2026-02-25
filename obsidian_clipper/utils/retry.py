@@ -4,12 +4,62 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import deque
 from collections.abc import Callable
 from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+class CircuitBreaker:
+    """Circuit breaker to prevent cascading failures.
+
+    Tracks recent failures and prevents attempts when threshold is exceeded.
+    """
+
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 60.0):
+        """Initialize circuit breaker.
+
+        Args:
+            failure_threshold: Number of failures before circuit opens.
+            recovery_timeout: Seconds to wait before allowing retry.
+        """
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self._failure_times: deque[float] = deque(maxlen=failure_threshold)
+        self._last_failure_time: float = 0.0
+
+    def should_attempt(self) -> bool:
+        """Check if an attempt should be made.
+
+        Returns:
+            True if circuit is closed or recovery timeout has passed.
+        """
+        if len(self._failure_times) < self.failure_threshold:
+            return True
+
+        # Check if recovery timeout has passed
+        elapsed = time.time() - self._last_failure_time
+        if elapsed >= self.recovery_timeout:
+            self._failure_times.clear()
+            return True
+
+        return False
+
+    def record_failure(self) -> None:
+        """Record a failure event."""
+        self._failure_times.append(time.time())
+        self._last_failure_time = time.time()
+
+    def record_success(self) -> None:
+        """Record a success event, clearing failure history."""
+        self._failure_times.clear()
+
+
+# Global circuit breaker for citation detection
+_citation_circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
 
 
 def retry_with_backoff(
