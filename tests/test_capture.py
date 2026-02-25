@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -289,9 +290,12 @@ class TestScreenshot:
         mock_os_getsize,
     ):
         """Test flameshot failure raises error."""
-        # Make all subprocess calls fail
-        mock_subprocess.side_effect = Exception("Subprocess failed")
-        mock_run.side_effect = Exception("Command failed")
+        # Make all subprocess calls fail with realistic exception types
+        # that the code actually catches (subprocess.SubprocessError, OSError, CommandError)
+        from obsidian_clipper.utils.command import CommandError
+
+        mock_subprocess.side_effect = subprocess.SubprocessError("Subprocess failed")
+        mock_run.side_effect = CommandError("Command failed")
         mock_os_exists.return_value = False
         mock_os_getsize.return_value = 0
 

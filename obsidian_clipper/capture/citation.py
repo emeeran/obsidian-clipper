@@ -6,6 +6,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from .text import get_active_window_title
 
@@ -35,6 +36,12 @@ TRAILING_PAGE_PATTERNS = [
     re.compile(r"\s*[—\-–]\s*\d+\s*/\s*\d+\s*$", re.IGNORECASE),
     re.compile(r"\s*[—\-–]\s*\d+\s+of\s+\d+\s*$", re.IGNORECASE),
 ]
+
+# Citation detection retry configuration
+# Multiple attempts handle transient window focus issues from global hotkeys
+CITATION_RETRY_ATTEMPTS = 6
+CITATION_RETRY_DELAY = 0.12  # seconds between attempts
+CITATION_RETRY_BACKOFF = 1.0  # constant delay (no exponential backoff)
 
 
 def _looks_like_pdf_or_epub_context(window_title: str) -> bool:
@@ -85,7 +92,7 @@ class Citation:
     url: str | None = None
     source: str | None = None
     source_type: SourceType = SourceType.UNKNOWN
-    extra: dict = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     def format_markdown(self) -> str:
         """Format citation as markdown string.
@@ -444,7 +451,7 @@ def get_citation() -> Citation | None:
 
     return retry_with_backoff(
         _try_get_citation,
-        max_attempts=6,
-        delay=0.12,
-        backoff=1.0,  # No backoff, constant delay
+        max_attempts=CITATION_RETRY_ATTEMPTS,
+        delay=CITATION_RETRY_DELAY,
+        backoff=CITATION_RETRY_BACKOFF,
     )

@@ -132,12 +132,13 @@ def process_and_save_content(
     """
     # Upload screenshot if captured
     if session.screenshot_path and session.img_filename:
-        if client.upload_image(session.screenshot_path, session.img_filename):
-            session.screenshot_success = True
-
-        # Cleanup temp file
-        if session.screenshot_path.exists():
-            session.screenshot_path.unlink()
+        try:
+            if client.upload_image(session.screenshot_path, session.img_filename):
+                session.screenshot_success = True
+        finally:
+            # Cleanup temp file regardless of upload success
+            if session.screenshot_path.exists():
+                session.screenshot_path.unlink()
 
     # Append content to note
     content = session.to_markdown()

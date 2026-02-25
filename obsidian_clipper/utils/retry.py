@@ -17,6 +17,16 @@ class CircuitBreaker:
     """Circuit breaker to prevent cascading failures.
 
     Tracks recent failures and prevents attempts when threshold is exceeded.
+
+    Example:
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
+
+        if cb.should_attempt():
+            try:
+                result = risky_operation()
+                cb.record_success()
+            except Exception:
+                cb.record_failure()
     """
 
     def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 60.0):
@@ -58,15 +68,12 @@ class CircuitBreaker:
         self._failure_times.clear()
 
 
-# Global circuit breaker for citation detection
-_citation_circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
-
-
 def retry_with_backoff(
     func: Callable[[], T | None],
     max_attempts: int = 3,
     delay: float = 0.1,
     backoff: float = 1.0,
+    circuit_breaker: CircuitBreaker | None = None,
     should_retry: Callable[[T | None], bool] | None = None,
 ) -> T | None:
     """Execute a function with retry and optional backoff.
@@ -76,6 +83,7 @@ def retry_with_backoff(
         max_attempts: Maximum number of attempts.
         delay: Initial delay between retries in seconds.
         backoff: Multiplier for delay after each attempt.
+        circuit_breaker: Optional circuit breaker to prevent cascading failures.
         should_retry: Optional function to determine if retry is needed.
                       If None, retries when result is None or falsy.
 
@@ -93,6 +101,11 @@ def retry_with_backoff(
             should_retry=lambda x: x is None
         )
     """
+    # Check circuit breaker before attempting
+    if circuit_breaker and not circuit_breaker.should_attempt():
+        logger.debug("Circuit breaker is open, skipping attempt")
+        return None
+
     current_delay = delay
 
     for attempt in range(max_attempts):
@@ -115,6 +128,10 @@ def retry_with_backoff(
                 current_delay *= backoff
                 continue
 
+            # Record success if we got a valid result
+            if circuit_breaker and result:
+                circuit_breaker.record_success()
+
             return result
 
         except Exception as e:
@@ -128,6 +145,9 @@ def retry_with_backoff(
                 time.sleep(current_delay)
                 current_delay *= backoff
             else:
+                # Record failure on final attempt
+                if circuit_breaker:
+                    circuit_breaker.record_failure()
                 logger.warning("All %d retry attempts failed", max_attempts)
                 raise
 

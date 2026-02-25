@@ -62,20 +62,13 @@ class CaptureSession:
             parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
 
         # Citation line (outside blockquote, with italics)
+        # Reuse Citation.format_markdown() to avoid duplication
         if self.citation:
-            parts.append("> \n")
-            parts.append("— ")
-            citation_title = self.citation.title
-            if self.citation.page:
-                citation_title = f"{citation_title}, p. {self.citation.page}"
-            parts.append(f"*{citation_title}*")
-            if self.citation.source and self.citation.source not in (
-                "PDF Reader",
-                "Browser",
-                "Unknown",
-            ):
-                parts.append(f" · {self.citation.source}")
-            parts.append("\n")
+            citation_md = self.citation.format_markdown()
+            if citation_md:
+                parts.append("> \n")
+                parts.append(citation_md)
+                parts.append("\n")
 
         # Screenshot embed
         if self.screenshot_success and self.img_filename:

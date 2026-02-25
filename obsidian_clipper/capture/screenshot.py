@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..config import get_config
 from ..exceptions import OCRError, ScreenshotError
-from ..utils.command import run_command_safely
+from ..utils.command import CommandError, run_command_safely
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def _capture_with_flameshot(filepath: str) -> bool:
                 timeout=60,  # Give user time to select area
                 check=True,
             )
-        except Exception:
+        except (CommandError, subprocess.SubprocessError, OSError):
             # Fallback for older Flameshot versions that don't support
             # --accept-on-select.
             run_command_safely(
@@ -110,7 +110,7 @@ def _capture_with_flameshot(filepath: str) -> bool:
         # Fallback: some Flameshot workflows place the image on clipboard
         # rather than writing directly to path.
         return _save_clipboard_image(filepath)
-    except Exception:
+    except (CommandError, subprocess.SubprocessError, OSError):
         return False
 
 
@@ -135,7 +135,7 @@ def _capture_with_flameshot_raw(filepath: str) -> bool:
             output.write(result.stdout)
 
         return os.path.exists(filepath) and os.path.getsize(filepath) > 0
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 
@@ -156,7 +156,7 @@ def _save_clipboard_image(filepath: str) -> bool:
             and os.path.exists(filepath)
             and os.path.getsize(filepath) > 0
         )
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 
@@ -249,7 +249,15 @@ def create_temp_screenshot(prefix: str = "obsidian_capture") -> Path:
 
 
 class ScreenshotCapture:
-    """High-level screenshot capture with OCR support."""
+    """High-level screenshot capture with OCR support.
+
+    Can be used as a context manager to ensure cleanup:
+
+        with ScreenshotCapture() as capture:
+            path, text = capture.capture()
+            # ... use path and text
+        # Temp file automatically cleaned up
+    """
 
     def __init__(
         self,
@@ -291,3 +299,11 @@ class ScreenshotCapture:
         if self._temp_file and self._temp_file.exists():
             self._temp_file.unlink()
             self._temp_file = None
+
+    def __enter__(self) -> ScreenshotCapture:
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, *args) -> None:
+        """Exit context manager, ensuring cleanup."""
+        self.cleanup()

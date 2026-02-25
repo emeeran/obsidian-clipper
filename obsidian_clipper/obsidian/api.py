@@ -147,8 +147,8 @@ class ObsidianClient:
             return response
         except requests.exceptions.ConnectionError as e:
             raise APIConnectionError(f"Failed to connect to Obsidian API: {e}") from e
-        except requests.exceptions.Timeout:
-            raise APIRequestError("Request timed out") from None
+        except requests.exceptions.Timeout as e:
+            raise APIRequestError("Request timed out") from e
         except requests.exceptions.RequestException as e:
             raise APIRequestError(f"Request failed: {e}") from e
 
