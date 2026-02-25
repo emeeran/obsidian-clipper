@@ -229,7 +229,7 @@ def ocr_image(
             timeout=30,
             check=True,
         )
-        return result.stdout.strip()
+        return str(result.stdout.strip())
     except Exception as e:
         logger.error(f"OCR failed: {e}")
         raise OCRError(f"OCR processing failed: {e}") from e
@@ -304,6 +304,11 @@ class ScreenshotCapture:
         """Enter context manager."""
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         """Exit context manager, ensuring cleanup."""
         self.cleanup()

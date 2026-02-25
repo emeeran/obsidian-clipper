@@ -16,9 +16,7 @@ Example usage:
 
 from __future__ import annotations
 
-__version__ = "2.0.0"
-__author__ = "Obsidian Clipper Contributors"
-
+from ._version import __author__, __description__, __license__, __version__
 from .capture import (
     Citation,
     ScreenshotCapture,
@@ -51,6 +49,9 @@ from .utils import Urgency, notify, notify_error, notify_success
 __all__ = [
     # Version
     "__version__",
+    "__author__",
+    "__description__",
+    "__license__",
     # Configuration
     "Config",
     "get_config",

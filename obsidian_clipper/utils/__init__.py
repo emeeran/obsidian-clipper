@@ -1,8 +1,14 @@
 """Utility functions for Obsidian Clipper."""
 
 from .command import CommandError, run_command_safely, run_command_with_fallback
+from .logging import (
+    JsonFormatter,
+    LogContext,
+    get_logger,
+    setup_logging,
+)
 from .notification import Urgency, notify, notify_error, notify_success, notify_warning
-from .retry import retry_with_backoff
+from .retry import CircuitBreaker, retry_with_backoff
 
 __all__ = [
     "run_command_safely",
@@ -14,4 +20,9 @@ __all__ = [
     "notify_warning",
     "Urgency",
     "retry_with_backoff",
+    "CircuitBreaker",
+    "setup_logging",
+    "get_logger",
+    "LogContext",
+    "JsonFormatter",
 ]

@@ -3,20 +3,33 @@
 from __future__ import annotations
 
 import argparse
-import logging
+import os
+from pathlib import Path
+
+from .._version import __version__
+from ..utils.logging import setup_logging as setup_structured_logging
 
 
 def setup_logging(verbose: bool = False, debug: bool = False) -> None:
-    """Configure logging level based on verbosity."""
-    level = logging.WARNING
-    if debug:
-        level = logging.DEBUG
-    elif verbose:
-        level = logging.INFO
+    """Configure logging level based on verbosity.
 
-    logging.basicConfig(
+    Supports both console and file logging with automatic rotation.
+    Log file location can be set via LOG_FILE environment variable.
+    """
+    level = "WARNING"
+    if debug:
+        level = "DEBUG"
+    elif verbose:
+        level = "INFO"
+
+    # Check for log file from environment or config
+    log_file = os.environ.get("LOG_FILE")
+    json_format = os.environ.get("LOG_FORMAT", "").lower() == "json"
+
+    setup_structured_logging(
         level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        log_file=Path(log_file) if log_file else None,
+        json_format=json_format,
     )
 
 
@@ -31,6 +44,10 @@ Examples:
   %(prog)s -s                 # Capture text + screenshot + OCR + citation
   %(prog)s -n "Notes/Journal" # Use custom target note
   %(prog)s --ocr-lang deu     # Use German OCR language
+
+Environment variables:
+  LOG_FILE    Path to log file for persistent logging
+  LOG_FORMAT  Set to 'json' for structured JSON logging
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -82,9 +99,28 @@ Examples:
         help="Enable debug logging",
     )
     parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=None,
+        help="Path to log file for persistent logging",
+    )
+    parser.add_argument(
+        "--json-logs",
+        action="store_true",
+        help="Output logs in JSON format",
+    )
+    parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 2.0.0",
+        version=f"%(prog)s {__version__}",
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Handle log file from CLI args (overrides environment)
+    if args.log_file:
+        os.environ["LOG_FILE"] = str(args.log_file)
+    if args.json_logs:
+        os.environ["LOG_FORMAT"] = "json"
+
+    return args

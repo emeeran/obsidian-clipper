@@ -1,0 +1,10 @@
+# Docker Compose Override - Minimal Image (No OCR)
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.minimal.yml up
+#
+# This uses the minimal Dockerfile without tesseract for ~50MB image
+
+services:
+  clipper:
+    build:
+      dockerfile: Dockerfile.minimal
+    image: obsidian-clipper:minimal

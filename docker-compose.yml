@@ -1,0 +1,75 @@
+# Obsidian Clipper - Docker Compose
+#
+# Usage:
+#   docker-compose up -d                    # Start in background
+#   docker-compose logs -f clipper          # View logs
+#   docker-compose exec clipper --help      # Run CLI commands
+#
+# For slim image without OCR:
+#   docker-compose -f docker-compose.yml -f docker-compose.minimal.yml up
+
+services:
+  clipper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: obsidian-clipper:latest
+    container_name: obsidian-clipper
+    restart: unless-stopped
+
+    # Environment configuration
+    environment:
+      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY:?API key is required}
+      - OBSIDIAN_BASE_URL=${OBSIDIAN_BASE_URL:-https://host.docker.internal:27124}
+      - OBSIDIAN_DEFAULT_NOTE=${OBSIDIAN_DEFAULT_NOTE:-Clippings/Inbox.md}
+      - OBSIDIAN_ATTACHMENT_DIR=${OBSIDIAN_ATTACHMENT_DIR:-Attachments/}
+      - OBSIDIAN_VERIFY_SSL=${OBSIDIAN_VERIFY_SSL:-false}
+      - OCR_LANGUAGE=${OCR_LANGUAGE:-eng}
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+
+    # Read-only root filesystem for security
+    read_only: true
+
+    # Temporary filesystem for writing
+    tmpfs:
+      - /tmp:size=10M,mode=1777
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # Network configuration
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Resource limits (minimal)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import obsidian_clipper"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 2s
+
+# No volumes needed for minimal setup
+# No network needed - connects to host
