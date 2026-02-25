@@ -8,14 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from obsidian_clipper.capture import Citation, SourceType
-from obsidian_clipper.clipper import (
-    CaptureSession,
-    main,
-    parse_args,
-    prepare_capture_session,
-    validate_config,
-)
+from obsidian_clipper.cli.main import main, validate_config
+from obsidian_clipper.cli.args import parse_args
 from obsidian_clipper.exceptions import ConfigurationError
+from obsidian_clipper.workflow import CaptureSession, prepare_capture_session
 
 
 class TestCaptureSession:
