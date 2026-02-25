@@ -220,7 +220,9 @@ class TestObsidianClient:
     def test_execute_request_general_error(self, mock_session, client):
         """Test _execute_request raises APIRequestError on general error."""
         mock_session_instance = MagicMock()
-        mock_session_instance.request.side_effect = requests.exceptions.RequestException("Network error")
+        mock_session_instance.request.side_effect = (
+            requests.exceptions.RequestException("Network error")
+        )
         mock_session.return_value = mock_session_instance
 
         with pytest.raises(APIRequestError) as exc_info:
@@ -231,7 +233,9 @@ class TestObsidianClient:
     def test_note_exists_exception(self, mock_session, client):
         """Test note_exists returns False on exception."""
         mock_session_instance = MagicMock()
-        mock_session_instance.request.side_effect = requests.exceptions.ConnectionError()
+        mock_session_instance.request.side_effect = (
+            requests.exceptions.ConnectionError()
+        )
         mock_session.return_value = mock_session_instance
 
         result = client.note_exists("Notes/Test.md")
@@ -241,7 +245,9 @@ class TestObsidianClient:
     def test_ensure_note_exists_exception(self, mock_session, client):
         """Test ensure_note_exists returns False on exception."""
         mock_session_instance = MagicMock()
-        mock_session_instance.request.side_effect = requests.exceptions.ConnectionError()
+        mock_session_instance.request.side_effect = (
+            requests.exceptions.ConnectionError()
+        )
         mock_session.return_value = mock_session_instance
 
         result = client.ensure_note_exists("Notes/Test.md")
@@ -275,7 +281,9 @@ class TestObsidianClient:
     def test_append_to_note_exception(self, mock_session, client):
         """Test append_to_note returns False on exception."""
         mock_session_instance = MagicMock()
-        mock_session_instance.request.side_effect = requests.exceptions.ConnectionError()
+        mock_session_instance.request.side_effect = (
+            requests.exceptions.ConnectionError()
+        )
         mock_session.return_value = mock_session_instance
 
         result = client.append_to_note("Notes/Test.md", "Content")
@@ -351,7 +359,9 @@ class TestObsidianClient:
 
         try:
             mock_session_instance = MagicMock()
-            mock_session_instance.request.side_effect = requests.exceptions.ConnectionError()
+            mock_session_instance.request.side_effect = (
+                requests.exceptions.ConnectionError()
+            )
             mock_session.return_value = mock_session_instance
 
             result = client.upload_image(temp_path)

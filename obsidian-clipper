@@ -6,8 +6,8 @@ without needing to specify full uv paths.
 """
 
 import os
-import sys
 import subprocess
+import sys
 
 # Get the directory where this script is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

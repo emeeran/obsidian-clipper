@@ -9,7 +9,9 @@ Single source of truth for version information used by:
 __version__ = "1.0.1"
 __author__ = "Meeran E Mandhini"
 __license__ = "MIT"
-__description__ = "Capture text, screenshots, and OCR content to Obsidian via Local REST API"
+__description__ = (
+    "Capture text, screenshots, and OCR content to Obsidian via Local REST API"
+)
 
 
 def get_version() -> str:

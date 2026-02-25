@@ -334,7 +334,9 @@ class TestSaveClipboardImage:
         mock_result.returncode = 1
         mock_run.return_value = mock_result
 
-        with patch("obsidian_clipper.capture.screenshot.os.path.exists", return_value=False):
+        with patch(
+            "obsidian_clipper.capture.screenshot.os.path.exists", return_value=False
+        ):
             result = _save_clipboard_image("/tmp/test.png")
 
         assert result is False

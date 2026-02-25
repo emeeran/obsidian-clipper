@@ -113,9 +113,9 @@ def retry_with_backoff(
             result = func()
 
             # Check if we should retry based on result
-            needs_retry = (
-                should_retry is not None and should_retry(result)
-            ) or (should_retry is None and not result)
+            needs_retry = (should_retry is not None and should_retry(result)) or (
+                should_retry is None and not result
+            )
 
             if needs_retry and attempt < max_attempts - 1:
                 logger.debug(

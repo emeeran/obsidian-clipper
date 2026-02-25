@@ -422,7 +422,9 @@ CITATION_PARSERS = [
 
 def _is_ignored_window(window_title: str) -> bool:
     """Check if window title should be ignored."""
-    return any(pattern.search(window_title) for pattern in IGNORED_WINDOW_TITLE_PATTERNS)
+    return any(
+        pattern.search(window_title) for pattern in IGNORED_WINDOW_TITLE_PATTERNS
+    )
 
 
 def _try_get_citation() -> Citation | None:

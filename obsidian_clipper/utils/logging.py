@@ -12,20 +12,22 @@ from pathlib import Path
 from typing import Any
 
 # Sensitive keys to filter from logs
-SENSITIVE_KEYS = frozenset({
-    "password",
-    "passwd",
-    "secret",
-    "token",
-    "api_key",
-    "apikey",
-    "authorization",
-    "auth",
-    "credential",
-    "private_key",
-    "access_token",
-    "refresh_token",
-})
+SENSITIVE_KEYS = frozenset(
+    {
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "api_key",
+        "apikey",
+        "authorization",
+        "auth",
+        "credential",
+        "private_key",
+        "access_token",
+        "refresh_token",
+    }
+)
 
 
 def _redact_sensitive(value: Any, depth: int = 0) -> Any:
@@ -43,7 +45,11 @@ def _redact_sensitive(value: Any, depth: int = 0) -> Any:
 
     if isinstance(value, dict):
         return {
-            k: "***REDACTED***" if k.lower() in SENSITIVE_KEYS else _redact_sensitive(v, depth + 1)
+            k: (
+                "***REDACTED***"
+                if k.lower() in SENSITIVE_KEYS
+                else _redact_sensitive(v, depth + 1)
+            )
             for k, v in value.items()
         }
     elif isinstance(value, (list, tuple)):
@@ -97,14 +103,32 @@ class JsonFormatter(logging.Formatter):
         # Add extra fields (excluding standard LogRecord attributes)
         if self.include_extra:
             standard_attrs = {
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "pathname", "process", "processName", "relativeCreated",
-                "stack_info", "exc_info", "exc_text", "thread", "threadName",
-                "message", "asctime",
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "stack_info",
+                "exc_info",
+                "exc_text",
+                "thread",
+                "threadName",
+                "message",
+                "asctime",
             }
             extra = {
-                k: v for k, v in record.__dict__.items()
+                k: v
+                for k, v in record.__dict__.items()
                 if k not in standard_attrs and not k.startswith("_")
             }
             if extra:
@@ -117,10 +141,10 @@ class HumanFormatter(logging.Formatter):
     """Human-readable log formatter with colors for terminal output."""
 
     COLORS = {
-        "DEBUG": "\033[36m",     # Cyan
-        "INFO": "\033[32m",      # Green
-        "WARNING": "\033[33m",   # Yellow
-        "ERROR": "\033[31m",     # Red
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
         "CRITICAL": "\033[35m",  # Magenta
     }
     RESET = "\033[0m"
