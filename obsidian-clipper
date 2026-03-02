@@ -5,16 +5,16 @@ This allows running from GNOME keyboard shortcuts
 without needing to specify full uv paths.
 """
 
-import os
 import subprocess
 import sys
+from pathlib import Path
 
 # Get the directory where this script is located
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = SCRIPT_DIR
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = str(SCRIPT_DIR)
 
-# Run the clipper with the screenshot flag
+# Run the clipper, forwarding any command-line arguments
 subprocess.run(
-    [sys.executable, "uv", "run", "--directory", PROJECT_DIR, "obsidian-clipper", "-s"],
-    cwd=PROJECT_DIR
+    ["uv", "run", "--directory", PROJECT_DIR, "obsidian-clipper"] + sys.argv[1:],
+    cwd=PROJECT_DIR,
 )
