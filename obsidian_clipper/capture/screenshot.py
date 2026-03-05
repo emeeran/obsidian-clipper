@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..config import get_config
 from ..exceptions import OCRError, ScreenshotError
-from ..utils.command import CommandError, run_command_safely
+from ..utils.command import run_command_safely
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def _capture_with_flameshot(filepath: str) -> bool:
                 timeout=60,  # Give user time to select area
                 check=True,
             )
-        except (CommandError, subprocess.SubprocessError, OSError):
+        except (subprocess.CalledProcessError, subprocess.SubprocessError, OSError):
             # Fallback for older Flameshot versions that don't support
             # --accept-on-select.
             run_command_safely(
@@ -110,7 +110,7 @@ def _capture_with_flameshot(filepath: str) -> bool:
         # Fallback: some Flameshot workflows place the image on clipboard
         # rather than writing directly to path.
         return _save_clipboard_image(filepath)
-    except (CommandError, subprocess.SubprocessError, OSError):
+    except (subprocess.CalledProcessError, subprocess.SubprocessError, OSError):
         return False
 
 

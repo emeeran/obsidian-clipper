@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from ..capture import SourceType
 from ..config import get_config
@@ -67,14 +68,14 @@ def _validate_session(session: CaptureSession, args: argparse.Namespace) -> str 
 def _save_and_notify(
     session: CaptureSession,
     client: ObsidianClient,
-    note_path: str,
+    target_dir: str,
 ) -> int:
     """Process and save content, then notify user.
 
     Args:
         session: Capture session with content.
         client: Obsidian API client.
-        note_path: Target note path.
+        target_dir: Target directory for new notes.
 
     Returns:
         Exit code (0 for success, 1 for failure).
@@ -83,8 +84,8 @@ def _save_and_notify(
         notify_error("Obsidian Capture Failed", "No content captured.")
         return 1
 
-    if not process_and_save_content(session, client, note_path):
-        notify_error("Obsidian Capture Failed", "Failed to append content.")
+    if not process_and_save_content(session, client, target_dir):
+        notify_error("Obsidian Capture Failed", "Failed to create note.")
         return 1
 
     # Build success message
@@ -112,20 +113,17 @@ def main() -> int:
         validate_config()
 
         config = get_config()
-        note_path = args.note or config.default_note
+        # Use args.note as target directory, or default_note from config
+        target_dir = args.note or config.default_note
+        # If target_dir ends with .md, extract the directory part
+        if target_dir.endswith(".md"):
+            target_dir = str(Path(target_dir).parent)
 
         with ObsidianClient(config) as client:
             if not client.check_connection():
                 notify_error(
                     "Obsidian Capture Failed",
                     "Cannot connect to Obsidian Local REST API.",
-                )
-                return 1
-
-            if not client.ensure_note_exists(note_path):
-                notify_error(
-                    "Obsidian Capture Failed",
-                    f"Could not access note: {note_path}",
                 )
                 return 1
 
@@ -136,7 +134,7 @@ def main() -> int:
                 notify_error("Obsidian Capture Failed", error)
                 return 1
 
-            return _save_and_notify(session, client, note_path)
+            return _save_and_notify(session, client, target_dir)
 
     except ConfigurationError as e:
         notify_error("Configuration Error", str(e))

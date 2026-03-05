@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,6 +33,32 @@ class CaptureSession:
     screenshot_success: bool = False
     img_filename: str | None = None
 
+    def get_note_filename(self, directory: str = "") -> str:
+        """Generate a unique filename for the note.
+
+        Args:
+            directory: Target directory (e.g., "00-Inbox/").
+
+        Returns:
+            Note path like "00-Inbox/2025-03-05 14-30 Capture.md"
+        """
+        # Use timestamp for unique filename (replace : with - for filesystem safety)
+        file_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H-%M")
+
+        # Get preview for filename
+        preview = self.get_preview(40)
+        # Sanitize for filename: remove/replace unsafe chars
+        safe_preview = re.sub(r'[<>:"/\\|?*\n\r]', "", preview)
+        safe_preview = re.sub(r"\s+", " ", safe_preview).strip()
+
+        filename = f"{file_timestamp} {safe_preview}.md"
+
+        if directory:
+            # Ensure directory ends with /
+            directory = directory.rstrip("/") + "/"
+            return f"{directory}{filename}"
+        return filename
+
     def has_content(self) -> bool:
         """Check if any content was captured."""
         return bool(
@@ -44,13 +71,13 @@ class CaptureSession:
     def to_markdown(self) -> str:
         """Convert captured content to markdown string.
 
-        Format (Clean & Minimal):
-        - H3 header with timestamp and pin emoji
+        Format (Standalone Note):
+        - H1 title with timestamp
         - Blockquote with text + OCR
         - Citation line outside blockquote (italics, bullet separator)
         - Screenshot embed (if captured)
         """
-        parts = ["\n", f"### 📌 {self.timestamp}\n"]
+        parts = [f"# 📌 {self.timestamp}\n\n"]
 
         # Build blockquote with text and OCR using list comprehensions
         if self.text:

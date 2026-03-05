@@ -118,14 +118,14 @@ def prepare_capture_session(args: argparse.Namespace) -> CaptureSession:
 def process_and_save_content(
     session: CaptureSession,
     client: ObsidianClient,
-    note_path: str,
+    target_dir: str = "",
 ) -> bool:
-    """Process captured content and save to Obsidian.
+    """Process captured content and save to Obsidian as a new note.
 
     Args:
         session: Capture session with content.
         client: Obsidian API client.
-        note_path: Target note path.
+        target_dir: Target directory for new notes (e.g., "00-Inbox/").
 
     Returns:
         True if successful.
@@ -140,8 +140,10 @@ def process_and_save_content(
             if session.screenshot_path.exists():
                 session.screenshot_path.unlink()
 
-    # Append content to note
+    # Generate unique note path and create new note
+    note_path = session.get_note_filename(target_dir)
     content = session.to_markdown()
+    logger.debug("Creating note: %s", note_path)
     logger.debug("Session markdown content:\n%s", content)
 
-    return client.append_to_note(note_path, content)
+    return client.create_note(note_path, content)
