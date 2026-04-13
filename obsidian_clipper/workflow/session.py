@@ -32,6 +32,8 @@ class CaptureSession:
     citation: Citation | None = None
     screenshot_success: bool = False
     img_filename: str | None = None
+    tags: list[str] = field(default_factory=list)
+    template: str | None = None
 
     def get_note_filename(self, directory: str = "") -> str:
         """Generate a filename for the note.
@@ -69,30 +71,56 @@ class CaptureSession:
         """Convert captured content to markdown string.
 
         Format (Standalone Note):
+        - YAML frontmatter (if tags present)
         - H1 title with timestamp
         - Blockquote with text + OCR
         - Citation line outside blockquote (italics, bullet separator)
         - Screenshot embed (if captured)
         """
-        parts = [f"# 📌 {self.timestamp}\n\n"]
+        parts = []
 
-        # Build blockquote with text and OCR using list comprehensions
-        if self.text:
-            parts.extend(f"> {line}\n" for line in self.text.split("\n"))
+        # Add YAML frontmatter
+        if self.tags:
+            parts.append("---\n")
+            parts.append("tags:\n")
+            for tag in self.tags:
+                tag = tag.strip()
+                if tag:
+                    # Remove leading # if present
+                    tag = tag.lstrip("#")
+                    parts.append(f"  - {tag}\n")
+            parts.append("---\n\n")
 
-        if self.ocr_text:
+        parts.append(f"### 📌 {self.timestamp}\n\n")
+
+        if self.template:
+            content = self.template
+            content = content.replace("{{text}}", self.text or "")
+            content = content.replace("{{ocr}}", self.ocr_text or "")
+            content = content.replace(
+                "{{citation}}", self.citation.format_markdown() if self.citation else ""
+            )
+            content = content.replace("{{timestamp}}", self.timestamp)
+            parts.append(content)
+            parts.append("\n")
+        else:
+            # Build blockquote with text and OCR using list comprehensions
             if self.text:
-                parts.append(">\n")
-            parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
+                parts.extend(f"> {line}\n" for line in self.text.split("\n"))
 
-        # Citation line (outside blockquote, with italics)
-        # Reuse Citation.format_markdown() to avoid duplication
-        if self.citation:
-            citation_md = self.citation.format_markdown()
-            if citation_md:
-                parts.append("> \n")
-                parts.append(citation_md)
-                parts.append("\n")
+            if self.ocr_text:
+                if self.text:
+                    parts.append(">\n")
+                parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
+
+            # Citation line (outside blockquote, with italics)
+            # Reuse Citation.format_markdown() to avoid duplication
+            if self.citation:
+                citation_md = self.citation.format_markdown()
+                if citation_md:
+                    parts.append("> \n")
+                    parts.append(citation_md)
+                    parts.append("\n")
 
         # Screenshot embed
         if self.screenshot_success and self.img_filename:

@@ -109,6 +109,13 @@ def main() -> int:
     args = parse_args()
     setup_logging(verbose=args.verbose, debug=args.debug)
 
+    # Launch TUI if requested
+    if args.config_ui:
+        from .tui import launch_config_ui
+
+        launch_config_ui()
+        return 0
+
     try:
         validate_config()
 

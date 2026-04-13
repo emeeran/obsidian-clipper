@@ -1,0 +1,8 @@
+services:
+  clipper:
+    build: .
+    volumes:
+      - .env:/app/.env
+    environment:
+      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY}
+      - OBSIDIAN_BASE_URL=${OBSIDIAN_BASE_URL}

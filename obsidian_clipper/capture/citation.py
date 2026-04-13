@@ -244,7 +244,9 @@ def parse_epub_citation(window_title: str) -> Citation | None:
         return None
 
     if "epub" not in window_title.lower() and not re.search(
-        r"(Foliate|Calibre|Thorium|FBReader)", window_title, re.IGNORECASE
+        r"(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF)",
+        window_title,
+        re.IGNORECASE,
     ):
         return None
 
@@ -253,7 +255,9 @@ def parse_epub_citation(window_title: str) -> Citation | None:
         return None
 
     source_match = re.search(
-        r"(Foliate|Calibre|Thorium|FBReader)", window_title, re.IGNORECASE
+        r"(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF)",
+        window_title,
+        re.IGNORECASE,
     )
     source = source_match.group(1) if source_match else "EPUB Reader"
 
@@ -264,7 +268,7 @@ def parse_epub_citation(window_title: str) -> Citation | None:
         title = title_match.group(1).strip()
     else:
         title = re.sub(
-            r"\s*[—\-–]\s*(Foliate|Calibre|Thorium|FBReader).*",
+            r"\s*[—\-–]\s*(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF).*",
             "",
             window_title,
             flags=re.IGNORECASE,

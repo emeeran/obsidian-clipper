@@ -77,9 +77,37 @@ Environment variables:
         help="Target note path (default: from config)",
     )
     parser.add_argument(
+        "-t",
+        "--tags",
+        default=None,
+        help="Comma-separated list of tags to add to the note",
+    )
+    parser.add_argument(
+        "--template",
+        default=None,
+        help="Template string for note content",
+    )
+    parser.add_argument(
         "--ocr-lang",
         default=None,
         help="OCR language code (e.g., 'eng', 'deu', 'fra')",
+    )
+    parser.add_argument(
+        "--image-format",
+        choices=["png", "webp", "jpeg"],
+        default="png",
+        help="Image format for screenshots (default: png)",
+    )
+    parser.add_argument(
+        "--image-quality",
+        type=int,
+        default=85,
+        help="Image quality for compression (1-100, default: 85)",
+    )
+    parser.add_argument(
+        "--config-ui",
+        action="store_true",
+        help="Launch the configuration TUI",
     )
     parser.add_argument(
         "--screenshot-tool",

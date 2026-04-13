@@ -28,7 +28,7 @@ class Config:
     Attributes:
         api_key: Obsidian Local REST API key
         base_url: Base URL for the Obsidian Local REST API
-        default_note: Default directory for new capture notes (relative to vault root)
+        default_note: Default note path for captures (relative to vault root)
         attachment_dir: Directory for attachments (relative to vault root)
         verify_ssl: Whether to verify SSL certificates
         timeout: API request timeout in seconds
@@ -37,7 +37,7 @@ class Config:
 
     api_key: str = ""
     base_url: str = "https://127.0.0.1:27124"
-    default_note: str = "00-Inbox/"
+    default_note: str = "00-Inbox/Quick Captures.md"
     attachment_dir: str = "Attachments/"
     verify_ssl: bool = True
     timeout: int = 10
@@ -56,21 +56,25 @@ class Config:
         """Load configuration from environment variables and .env file.
 
         Args:
-            env_file: Optional path to .env file. If None, checks:
-                      1. ~/.config/obsidian-clipper/.env
-                      2. .env in current directory
+            env_file: Optional path to .env file. If None, looks for .env in:
+                      1. Current directory
+                      2. ~/.config/obsidian-clipper/.env
         """
+        # Define standard config paths
+        config_dir = Path.home() / ".config" / "obsidian-clipper"
+        standard_env = config_dir / ".env"
+
         # Load .env file if available
         if HAS_DOTENV:
+            # 1. Try provided path
             if env_file:
                 load_dotenv(env_file)
             else:
-                # Check standard config location first
-                config_env = Path.home() / ".config" / "obsidian-clipper" / ".env"
-                if config_env.exists():
-                    load_dotenv(config_env)
-                else:
-                    load_dotenv()
+                # 2. Try current directory
+                load_dotenv()
+                # 3. Try standard config path if current dir didn't have it
+                if standard_env.exists():
+                    load_dotenv(standard_env, override=False)
 
         # Override with environment variables
         self.api_key = os.getenv("OBSIDIAN_API_KEY", self.api_key)
@@ -129,6 +133,9 @@ class Config:
             errors.append(
                 "Base URL is required. Set OBSIDIAN_BASE_URL environment variable."
             )
+
+        if not self.default_note:
+            errors.append("Default note path is required.")
 
         if self.timeout <= 0:
             errors.append("Timeout must be a positive integer.")

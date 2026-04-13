@@ -10,8 +10,8 @@ Example usage:
     text = get_selected_text()
     citation = get_citation()
 
-    content = f"# Capture\\n\\n> {text}\\n{citation.format_markdown()}"
-    client.create_note("Inbox/capture.md", content)
+    content = f"> {text}\\n{citation.format_markdown()}"
+    client.append_to_note("Notes.md", content)
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ from .exceptions import (
     OCRError,
     PathSecurityError,
     ScreenshotError,
+    TextCaptureError,
 )
 from .obsidian import ObsidianClient, validate_path
 from .utils import Urgency, notify, notify_error, notify_success
@@ -63,6 +64,7 @@ __all__ = [
     "CaptureError",
     "ScreenshotError",
     "OCRError",
+    "TextCaptureError",
     "PathSecurityError",
     # API Client
     "ObsidianClient",

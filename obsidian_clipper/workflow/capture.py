@@ -43,6 +43,35 @@ def _get_fallback_citation(pre_capture_title: str) -> Citation | None:
     )
 
 
+def _optimize_screenshot(
+    image_path: Path,
+    img_format: str = "png",
+    quality: int = 85,
+) -> Path:
+    """Optimize screenshot image using Pillow."""
+    try:
+        from PIL import Image
+    except ImportError:
+        logger.warning("Pillow not installed. Skipping image optimization.")
+        return image_path
+
+    try:
+        with Image.open(image_path) as img:
+            out_path = image_path.with_suffix(f".{img_format.lower()}")
+            save_kwargs = {}
+            if img_format.lower() in ("jpeg", "jpg", "webp"):
+                save_kwargs["quality"] = quality
+                if img.mode == "RGBA":
+                    img = img.convert("RGB")
+            img.save(out_path, format=img_format, **save_kwargs)
+            if out_path != image_path:
+                image_path.unlink()
+            return out_path
+    except Exception as e:
+        logger.warning(f"Image optimization failed: {e}")
+        return image_path
+
+
 def _capture_screenshot_session(
     session: CaptureSession,
     args: argparse.Namespace,
@@ -70,6 +99,12 @@ def _capture_screenshot_session(
     try:
         screenshot_path, ocr_text = capture.capture()
         if screenshot_path:
+            # Optimize image
+            screenshot_path = _optimize_screenshot(
+                screenshot_path,
+                img_format=args.image_format,
+                quality=args.image_quality,
+            )
             session.screenshot_path = screenshot_path
             session.ocr_text = ocr_text
             session.img_filename = screenshot_path.name
@@ -96,6 +131,10 @@ def prepare_capture_session(args: argparse.Namespace) -> CaptureSession:
         CaptureSession with captured content.
     """
     session = CaptureSession()
+
+    if args.tags:
+        session.tags = [t.strip() for t in args.tags.split(",")]
+    session.template = args.template
 
     # In screenshot mode, skip text capture so Flameshot opens immediately
     # Text will come from OCR instead
