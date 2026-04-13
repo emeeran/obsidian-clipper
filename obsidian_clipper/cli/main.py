@@ -32,7 +32,7 @@ def validate_config() -> None:
             logger.error(f"Configuration error: {error}")
         raise ConfigurationError(
             "Invalid configuration. Please set required environment variables.\n"
-            "See .env.example for reference."
+            "Run `obsidian-clipper --config-ui` for guided setup."
         )
 
 
@@ -60,7 +60,7 @@ def _validate_session(session: CaptureSession, args: argparse.Namespace) -> str 
 
     # Non-screenshot mode requires text selection
     if not session.text and not args.screenshot:
-        return "No text selected."
+        return "No text selected. Highlight text before pressing the shortcut."
 
     return None
 
@@ -130,7 +130,8 @@ def main() -> int:
             if not client.check_connection():
                 notify_error(
                     "Obsidian Capture Failed",
-                    "Cannot connect to Obsidian Local REST API.",
+                    "Cannot connect to Obsidian. Check that Obsidian is running, "
+                    "the Local REST API plugin is enabled, and the API key matches.",
                 )
                 return 1
 

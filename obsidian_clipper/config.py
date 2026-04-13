@@ -8,10 +8,13 @@ Supports configuration via:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 try:
     from dotenv import load_dotenv
@@ -84,7 +87,10 @@ class Config:
         self.verify_ssl = (
             os.getenv("OBSIDIAN_VERIFY_SSL", str(self.verify_ssl)).lower() == "true"
         )
-        self.timeout = int(os.getenv("OBSIDIAN_TIMEOUT", str(self.timeout)))
+        try:
+            self.timeout = int(os.getenv("OBSIDIAN_TIMEOUT", str(self.timeout)))
+        except (ValueError, TypeError):
+            logger.warning("Invalid OBSIDIAN_TIMEOUT value, using default: %s", self.timeout)
         raw_ocr_language = os.getenv("OBSIDIAN_OCR_LANGUAGE", self.ocr_language)
         self.ocr_language = self._normalize_ocr_language(raw_ocr_language)
 

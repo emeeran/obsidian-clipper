@@ -48,7 +48,7 @@ def run_command_safely(
         capture_output=capture_output,
         text=True,
         timeout=timeout,
-        check=check,
+        check=False,
         input=input_text,
     )
 

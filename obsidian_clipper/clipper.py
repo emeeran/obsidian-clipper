@@ -8,10 +8,8 @@ the new modular structure. New code should import directly from:
 
 from __future__ import annotations
 
-# Re-export for backward compatibility
 from .cli import parse_args, setup_logging
-from .cli.main import main
-from .cli.main import validate_config
+from .cli.main import main, validate_config
 from .workflow import CaptureSession, prepare_capture_session, process_and_save_content
 
 __all__ = [

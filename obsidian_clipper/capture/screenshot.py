@@ -33,12 +33,18 @@ def _wait_for_file(filepath: str | Path, timeout: float = 3.0) -> bool:
     max_interval = 0.5  # Max 500ms between polls
 
     while time.time() - start_time < timeout:
-        if filepath.exists() and filepath.stat().st_size > 0:
-            return True
+        try:
+            if filepath.stat().st_size > 0:
+                return True
+        except FileNotFoundError:
+            pass
         time.sleep(poll_interval)
         poll_interval = min(poll_interval * 1.5, max_interval)
 
-    return filepath.exists() and filepath.stat().st_size > 0
+    try:
+        return filepath.stat().st_size > 0
+    except FileNotFoundError:
+        return False
 
 
 def take_screenshot(
@@ -292,6 +298,7 @@ class ScreenshotCapture:
 
             return self._temp_file, ocr_text
         except ScreenshotError:
+            self.cleanup()
             return None, ""
 
     def cleanup(self) -> None:

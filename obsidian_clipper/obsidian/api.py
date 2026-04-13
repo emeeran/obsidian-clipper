@@ -21,8 +21,8 @@ from ..utils.retry import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
-# Pattern for detecting path traversal attempts (.. and Windows drive letters)
-PATH_TRAVERSAL_PATTERN = re.compile(r"\.\.(/|\\)|^\w+:")
+# Pattern for detecting Windows drive letters
+_DRIVE_LETTER_PATTERN = re.compile(r"^\w+:")
 
 
 def validate_path(path: str) -> str:
@@ -48,8 +48,8 @@ def validate_path(path: str) -> str:
     if not path:
         return ""
 
-    # Check for path traversal and Windows drive letters
-    if PATH_TRAVERSAL_PATTERN.search(path):
+    # Check for path traversal (any ".." path component) and Windows drive letters
+    if ".." in path.split("/") or _DRIVE_LETTER_PATTERN.search(path):
         raise PathSecurityError(f"Path traversal detected: {path}")
 
     return path

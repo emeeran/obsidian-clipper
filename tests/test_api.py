@@ -71,6 +71,16 @@ class TestValidatePath:
         with pytest.raises(PathSecurityError):
             validate_path("Notes/../secrets.txt")
 
+    def test_validate_path_traversal_bare_parent(self):
+        """Test bare '..' at end of path is blocked."""
+        with pytest.raises(PathSecurityError):
+            validate_path("notes/..")
+
+    def test_validate_path_traversal_only_dots(self):
+        """Test path that is just '..' is blocked."""
+        with pytest.raises(PathSecurityError):
+            validate_path("..")
+
 
 class TestObsidianClient:
     """Tests for ObsidianClient class."""

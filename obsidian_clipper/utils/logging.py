@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -273,7 +274,7 @@ class LogContext:
             logger.info("Processing capture")
     """
 
-    _context: dict[str, Any] = {}
+    _local = threading.local()
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize log context with key-value pairs.
@@ -284,20 +285,28 @@ class LogContext:
         self._new_context = kwargs
         self._old_context: dict[str, Any] = {}
 
+    @classmethod
+    def _get_context(cls) -> dict[str, Any]:
+        """Get thread-local context dict."""
+        if not hasattr(cls._local, "context"):
+            cls._local.context = {}
+        return cls._local.context
+
     def __enter__(self) -> LogContext:
         """Enter context, adding new fields."""
-        self._old_context = LogContext._context.copy()
-        LogContext._context.update(self._new_context)
+        ctx = self._get_context()
+        self._old_context = ctx.copy()
+        ctx.update(self._new_context)
         return self
 
     def __exit__(self, *args: Any) -> None:
         """Exit context, restoring previous fields."""
-        LogContext._context = self._old_context
+        self._local.context = self._old_context
 
     @classmethod
     def get_context(cls) -> dict[str, Any]:
         """Get current logging context."""
-        return cls._context.copy()
+        return cls._get_context().copy()
 
 
 class ContextFilter(logging.Filter):
