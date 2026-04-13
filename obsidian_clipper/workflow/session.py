@@ -34,24 +34,21 @@ class CaptureSession:
     img_filename: str | None = None
 
     def get_note_filename(self, directory: str = "") -> str:
-        """Generate a unique filename for the note.
+        """Generate a filename for the note.
 
         Args:
             directory: Target directory (e.g., "00-Inbox/").
 
         Returns:
-            Note path like "00-Inbox/2025-03-05 14-30 Capture.md"
+            Note path like "00-Inbox/Capture.md"
         """
-        # Use timestamp for unique filename (replace : with - for filesystem safety)
-        file_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H-%M")
-
         # Get preview for filename
         preview = self.get_preview(40)
         # Sanitize for filename: remove/replace unsafe chars
         safe_preview = re.sub(r'[<>:"/\\|?*\n\r]', "", preview)
         safe_preview = re.sub(r"\s+", " ", safe_preview).strip()
 
-        filename = f"{file_timestamp} {safe_preview}.md"
+        filename = f"{safe_preview}.md"
 
         if directory:
             # Ensure directory ends with /
