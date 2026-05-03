@@ -161,6 +161,8 @@ def _save_and_notify(
     client: ObsidianClient,
     target_dir: str,
     append: bool = False,
+    open_after: bool = False,
+    created_note_path: str | None = None,
 ) -> int:
     """Process and save content, then notify user.
 
@@ -168,6 +170,9 @@ def _save_and_notify(
         session: Capture session with content.
         client: Obsidian API client.
         target_dir: Target directory for new notes.
+        append: If True, append to existing note.
+        open_after: If True, open the note in Obsidian after saving.
+        created_note_path: Path of the created note (for --open).
 
     Returns:
         Exit code (0 for success, 1 for failure).
@@ -179,6 +184,10 @@ def _save_and_notify(
     if not process_and_save_content(session, client, target_dir, append=append):
         notify_error("Obsidian Capture Failed", "Failed to create note.")
         return 1
+
+    # Open note in Obsidian if requested
+    if open_after and created_note_path:
+        client.open_note(created_note_path)
 
     # Build success message with content details
     preview = session.get_preview(60)
@@ -294,7 +303,34 @@ def main() -> int:
                 notify_error("Obsidian Capture Failed", error)
                 return 1
 
-            return _save_and_notify(session, client, target_dir, append=args.append)
+            # --daily: append to today's daily note via periodic notes API
+            if args.daily:
+                content = session.to_markdown(include_frontmatter=False)
+                if not content:
+                    notify_error("Obsidian Capture Failed", "No content captured.")
+                    return 1
+                if not client.append_periodic_note("daily", "\n" + content):
+                    notify_error("Obsidian Capture Failed", "Failed to append to daily note.")
+                    return 1
+
+                preview = session.get_preview(60)
+                notify_success("Obsidian Capture", f'Captured "{preview}" to daily note')
+                return 0
+
+            # Determine note path for --open
+            created_note_path: str | None = None
+            if args.open:
+                if args.append:
+                    created_note_path = target_dir
+                else:
+                    created_note_path = session.get_note_filename(target_dir)
+
+            return _save_and_notify(
+                session, client, target_dir,
+                append=args.append,
+                open_after=args.open,
+                created_note_path=created_note_path,
+            )
 
     except ConfigurationError as e:
         notify_error("Configuration Error", str(e))

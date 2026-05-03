@@ -266,6 +266,86 @@ class ObsidianClient:
             logger.error("Failed to list directory: %s", e)
             return []
 
+    def open_note(self, note_path: str, new_leaf: bool = False) -> bool:
+        """Open a note in Obsidian.
+
+        Args:
+            note_path: Path to the note to open.
+            new_leaf: If True, open in a new pane.
+
+        Returns:
+            True if the open request succeeded.
+        """
+        try:
+            safe_path = validate_path(note_path)
+            url = f"{self.config.base_url}/open/{quote(safe_path, safe='/')}"
+            params: dict[str, str] = {}
+            if new_leaf:
+                params["newLeaf"] = "true"
+            response = self._execute_request("POST", url, params=params)
+            return response.status_code in (200, 204)
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Failed to open note: %s", e)
+            return False
+
+    def get_active_file(self) -> str | None:
+        """Get the path of the currently active file in Obsidian.
+
+        Returns:
+            Active file path, or None if not available.
+        """
+        try:
+            url = f"{self.config.base_url}/active/"
+            response = self._execute_request("GET", url)
+            if response.status_code == 200:
+                data = response.json()
+                return str(data.get("filepath", "")) or None
+            return None
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Failed to get active file: %s", e)
+            return None
+
+    def get_periodic_note(self, period: str = "daily") -> str | None:
+        """Get content of a periodic note.
+
+        Args:
+            period: Note period — 'daily', 'weekly', 'monthly'.
+
+        Returns:
+            Note content, or None if not found.
+        """
+        try:
+            url = f"{self.config.base_url}/periodic/{period}/"
+            response = self._execute_request("GET", url)
+            if response.status_code == 200:
+                return str(response.text)
+            return None
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Failed to get periodic note: %s", e)
+            return None
+
+    def append_periodic_note(self, period: str, content: str) -> bool:
+        """Append content to a periodic note.
+
+        Args:
+            period: Note period — 'daily', 'weekly', 'monthly'.
+            content: Markdown content to append.
+
+        Returns:
+            True if successful.
+        """
+        try:
+            url = f"{self.config.base_url}/periodic/{period}/"
+            response = self._execute_request(
+                "POST", url,
+                headers={**self.config.headers, "Content-Type": "text/markdown"},
+                data=content.encode("utf-8"),
+            )
+            return response.status_code in (200, 201, 204)
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Failed to append to periodic note: %s", e)
+            return False
+
     def close(self) -> None:
         if self._session:
             self._session.close()

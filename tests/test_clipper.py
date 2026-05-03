@@ -535,3 +535,100 @@ class TestURIFallback:
         result = _save_via_uri(session)
 
         assert result is False
+
+
+class TestDailyNoteAndOpen:
+    """Tests for --daily and --open flags."""
+
+    def test_daily_flag_parsed(self):
+        """Test --daily flag is parsed."""
+        with patch("sys.argv", ["clipper", "--daily"]):
+            args = parse_args()
+            assert args.daily is True
+
+    def test_daily_default_false(self):
+        """Test --daily defaults to False."""
+        with patch("sys.argv", ["clipper"]):
+            args = parse_args()
+            assert args.daily is False
+
+    def test_open_flag_parsed(self):
+        """Test --open flag is parsed."""
+        with patch("sys.argv", ["clipper", "--open"]):
+            args = parse_args()
+            assert args.open is True
+
+    def test_open_default_false(self):
+        """Test --open defaults to False."""
+        with patch("sys.argv", ["clipper"]):
+            args = parse_args()
+            assert args.open is False
+
+    @patch("obsidian_clipper.cli.main.validate_config")
+    @patch("obsidian_clipper.cli.main.ObsidianClient")
+    @patch("obsidian_clipper.cli.main.get_config")
+    @patch("obsidian_clipper.workflow.capture.get_citation")
+    @patch("obsidian_clipper.workflow.capture.get_selected_text")
+    @patch("obsidian_clipper.cli.main.notify_success")
+    def test_daily_appends_to_periodic_note(
+        self,
+        mock_notify,
+        mock_get_text,
+        mock_get_citation,
+        mock_get_config,
+        mock_client_class,
+        mock_validate,
+    ):
+        """Test --daily appends to daily note via periodic API."""
+        mock_get_text.return_value = "Daily capture text"
+        mock_get_citation.return_value = None
+        mock_config = MagicMock()
+        mock_config.default_note = "Notes.md"
+        mock_get_config.return_value = mock_config
+
+        mock_client = MagicMock()
+        mock_client.check_connection.return_value = True
+        mock_client.append_periodic_note.return_value = True
+        mock_client_class.return_value.__enter__.return_value = mock_client
+
+        with patch("sys.argv", ["clipper", "--daily"]):
+            result = main()
+
+        assert result == 0
+        mock_client.append_periodic_note.assert_called_once()
+        call_args = mock_client.append_periodic_note.call_args
+        assert call_args[0][0] == "daily"
+        assert "Daily capture text" in call_args[0][1]
+
+    @patch("obsidian_clipper.cli.main.validate_config")
+    @patch("obsidian_clipper.cli.main.ObsidianClient")
+    @patch("obsidian_clipper.cli.main.get_config")
+    @patch("obsidian_clipper.workflow.capture.get_citation")
+    @patch("obsidian_clipper.workflow.capture.get_selected_text")
+    @patch("obsidian_clipper.cli.main.notify_success")
+    def test_open_opens_note_after_capture(
+        self,
+        mock_notify,
+        mock_get_text,
+        mock_get_citation,
+        mock_get_config,
+        mock_client_class,
+        mock_validate,
+    ):
+        """Test --open opens the created note in Obsidian."""
+        mock_get_text.return_value = "Test text"
+        mock_get_citation.return_value = None
+        mock_config = MagicMock()
+        mock_config.default_note = "Notes.md"
+        mock_get_config.return_value = mock_config
+
+        mock_client = MagicMock()
+        mock_client.check_connection.return_value = True
+        mock_client.create_note.return_value = True
+        mock_client_class.return_value.__enter__.return_value = mock_client
+
+        with patch("sys.argv", ["clipper", "--open"]):
+            result = main()
+
+        assert result == 0
+        mock_client.open_note.assert_called_once()

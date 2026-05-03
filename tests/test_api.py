@@ -624,3 +624,106 @@ class TestSearchAPI:
 
         files = client.list_directory("Notes")
         assert len(files) == 2
+
+
+class TestAdvancedAPI:
+    """Tests for open, active file, and periodic note endpoints."""
+
+    @pytest.fixture
+    def client(self):
+        config = Config(api_key="testkey1234567890", _loaded=True)
+        return ObsidianClient(config)
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_open_note_success(self, mock_session, client):
+        """Test opening a note in Obsidian."""
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.open_note("Notes/Test.md")
+        assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_open_note_with_new_leaf(self, mock_session, client):
+        """Test opening a note in a new pane."""
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_session_instance = MagicMock()
+        mock_session_instance.request.return_value = mock_response
+        mock_session.return_value = mock_session_instance
+
+        result = client.open_note("Notes/Test.md", new_leaf=True)
+        assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_open_note_connection_error(self, mock_session, client):
+        """Test open_note returns False on connection error."""
+        mock_session_instance = MagicMock()
+        mock_session_instance.request.side_effect = requests.exceptions.ConnectionError()
+        mock_session.return_value = mock_session_instance
+
+        result = client.open_note("Notes/Test.md")
+        assert result is False
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_get_active_file(self, mock_session, client):
+        """Test getting the currently active file."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"filepath": "Notes/Daily.md"}
+        mock_session.return_value.request.return_value = mock_response
+
+        filepath = client.get_active_file()
+        assert filepath == "Notes/Daily.md"
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_get_active_file_none(self, mock_session, client):
+        """Test get_active_file returns None when no file active."""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_session.return_value.request.return_value = mock_response
+
+        filepath = client.get_active_file()
+        assert filepath is None
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_get_periodic_note(self, mock_session, client):
+        """Test getting daily note content."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "# Today's Note\n- task 1"
+        mock_session.return_value.request.return_value = mock_response
+
+        content = client.get_periodic_note("daily")
+        assert "Today's Note" in content
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_get_periodic_note_not_found(self, mock_session, client):
+        """Test get_periodic_note returns None for 404."""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_session.return_value.request.return_value = mock_response
+
+        content = client.get_periodic_note("daily")
+        assert content is None
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_append_periodic_note_success(self, mock_session, client):
+        """Test appending to a daily note."""
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.append_periodic_note("daily", "- new task")
+        assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_append_periodic_note_failure(self, mock_session, client):
+        """Test append_periodic_note returns False on error."""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.append_periodic_note("daily", "- new task")
+        assert result is False

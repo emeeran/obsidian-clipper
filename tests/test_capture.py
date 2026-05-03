@@ -19,7 +19,11 @@ from obsidian_clipper.capture import (
     parse_epub_citation,
     parse_generic_citation,
     parse_jetbrains_citation,
+    parse_libreoffice_citation,
     parse_pdf_citation,
+    parse_sublime_citation,
+    parse_texstudio_citation,
+    parse_zotero_citation,
     take_screenshot,
 )
 from obsidian_clipper.exceptions import ScreenshotError
@@ -166,6 +170,71 @@ class TestCitationParsing:
     def test_parse_jetbrains_citation_no_match(self):
         """Test when window title doesn't match JetBrains pattern."""
         citation = parse_jetbrains_citation("main.py - myproject - Visual Studio Code")
+        assert citation is None
+
+    def test_parse_sublime_citation(self):
+        """Test parsing Sublime Text citation with project."""
+        citation = parse_sublime_citation("main.py - ~/project - Sublime Text")
+        assert citation is not None
+        assert citation.title == "main.py"
+        assert citation.source == "Sublime Text"
+
+    def test_parse_sublime_citation_no_project(self):
+        """Test parsing Sublime Text citation without project."""
+        citation = parse_sublime_citation("README.md - Sublime Text")
+        assert citation is not None
+        assert citation.title == "README.md"
+        assert citation.source == "Sublime Text"
+
+    def test_parse_sublime_citation_no_match(self):
+        """Test Sublime Text pattern doesn't match other editors."""
+        citation = parse_sublime_citation("main.py - Visual Studio Code")
+        assert citation is None
+
+    def test_parse_zotero_citation(self):
+        """Test parsing Zotero citation."""
+        citation = parse_zotero_citation(
+            "Deep Learning — Zotero"
+        )
+        assert citation is not None
+        assert citation.title == "Deep Learning"
+        assert citation.source == "Zotero"
+
+    def test_parse_zotero_citation_no_match(self):
+        """Test Zotero pattern with short title returns None."""
+        citation = parse_zotero_citation("A - Zotero")
+        assert citation is None
+
+    def test_parse_libreoffice_citation_writer(self):
+        """Test parsing LibreOffice Writer citation."""
+        citation = parse_libreoffice_citation(
+            "Research Paper.odt — LibreOffice Writer"
+        )
+        assert citation is not None
+        assert citation.title == "Research Paper.odt"
+        assert citation.source == "LibreOffice Writer"
+
+    def test_parse_libreoffice_citation_calc(self):
+        """Test parsing LibreOffice Calc citation."""
+        citation = parse_libreoffice_citation("Budget.ods — LibreOffice Calc")
+        assert citation is not None
+        assert citation.source == "LibreOffice Calc"
+
+    def test_parse_libreoffice_citation_no_match(self):
+        """Test LibreOffice pattern doesn't match other apps."""
+        citation = parse_libreoffice_citation("Document.pdf — Evince")
+        assert citation is None
+
+    def test_parse_texstudio_citation(self):
+        """Test parsing TeXstudio citation."""
+        citation = parse_texstudio_citation("paper.tex - TeXstudio [*,+]")
+        assert citation is not None
+        assert citation.title == "paper.tex"
+        assert citation.source == "TeXstudio"
+
+    def test_parse_texstudio_citation_no_match(self):
+        """Test TeXstudio pattern doesn't match other editors."""
+        citation = parse_texstudio_citation("main.py - Visual Studio Code")
         assert citation is None
 
     def test_parse_code_editor_citation_vscode(self):

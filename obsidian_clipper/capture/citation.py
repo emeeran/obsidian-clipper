@@ -40,7 +40,8 @@ TRAILING_PAGE_PATTERN = re.compile(
 )
 
 PDF_EPUB_CONTEXT_PATTERN = re.compile(
-    r"(\.pdf\b|\.epub\b|Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)",
+    r"(\.pdf\b|\.epub\b|Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader"
+    r"|Atril|Xreader|MuPDF|Acrobat|Foxit)",
     re.IGNORECASE,
 )
 
@@ -62,9 +63,37 @@ JETBRAINS_PATTERN = re.compile(
     r"|RubyMine|PhpStorm|Rider|DataGrip|Fleet)"
 )
 
+# Sublime Text: "filename.py - ~/project - Sublime Text" or "filename.py - Sublime Text"
+SUBLIME_PATTERN = re.compile(
+    r"(.+?)\s*-\s*(?:.+?\s*-\s*)?Sublime Text(?:\s+\(UNREGISTERED\))?(?:\s+\[\d+\])?$",
+    re.IGNORECASE,
+)
+
+# Zotero: "Title - Zotero" or "Title - Zotero Library"
+ZOTERO_PATTERN = re.compile(
+    r"(.+?)\s*[—\-–]\s*Zotero", re.IGNORECASE
+)
+
+# LibreOffice: "Document.odt — LibreOffice Writer" or "Untitled 1 — LibreOffice Writer"
+LIBREOFFICE_PATTERN = re.compile(
+    r"(.+?)\s*[—\-–]\s*LibreOffice\s+(Writer|Calc|Impress|Draw|Math|Base)",
+    re.IGNORECASE,
+)
+
+# TeXstudio: "file.tex - TeXstudio [*,+]"
+TEXSTUDIO_PATTERN = re.compile(
+    r"(.+?)\s*-\s*TeXstudio", re.IGNORECASE
+)
+
 # Reader apps whose titles should be skipped by the generic fallback parser
 READER_APP_PATTERN = re.compile(
-    r"(Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)", re.IGNORECASE
+    r"(Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF)",
+    re.IGNORECASE,
+)
+
+# Additional PDF reader apps for context detection
+PDF_READER_APP_PATTERN = re.compile(
+    r"(Atril|Xreader|MuPDF|Acrobat|Foxit)", re.IGNORECASE
 )
 
 # Citation detection retry configuration
@@ -400,6 +429,81 @@ def parse_code_editor_citation(window_title: str) -> Citation | None:
     return None
 
 
+def parse_sublime_citation(window_title: str) -> Citation | None:
+    """Parse window title from Sublime Text.
+
+    Handles formats like "file.py - ~/project - Sublime Text" and "file.py - Sublime Text".
+    """
+    if not window_title:
+        return None
+    match = SUBLIME_PATTERN.match(window_title)
+    if match:
+        return Citation(
+            title=match.group(1).strip(),
+            source="Sublime Text",
+            source_type=SourceType.UNKNOWN,
+        )
+    return None
+
+
+def parse_zotero_citation(window_title: str) -> Citation | None:
+    """Parse window title from Zotero reference manager.
+
+    Handles "Title — Zotero" and "Title - Zotero Library" patterns.
+    """
+    if not window_title:
+        return None
+    match = ZOTERO_PATTERN.match(window_title)
+    if match:
+        title = match.group(1).strip()
+        if title and len(title) > 2:
+            return Citation(
+                title=title,
+                source="Zotero",
+                source_type=SourceType.UNKNOWN,
+            )
+    return None
+
+
+def parse_libreoffice_citation(window_title: str) -> Citation | None:
+    """Parse window title from LibreOffice apps.
+
+    Handles "Document.odt — LibreOffice Writer" patterns.
+    """
+    if not window_title:
+        return None
+    match = LIBREOFFICE_PATTERN.match(window_title)
+    if match:
+        title = match.group(1).strip()
+        component = match.group(2).strip()
+        if title and len(title) > 2:
+            return Citation(
+                title=title,
+                source=f"LibreOffice {component}",
+                source_type=SourceType.UNKNOWN,
+            )
+    return None
+
+
+def parse_texstudio_citation(window_title: str) -> Citation | None:
+    """Parse window title from TeXstudio LaTeX editor.
+
+    Handles "file.tex - TeXstudio" patterns.
+    """
+    if not window_title:
+        return None
+    match = TEXSTUDIO_PATTERN.match(window_title)
+    if match:
+        title = match.group(1).strip()
+        if title and len(title) > 2:
+            return Citation(
+                title=title,
+                source="TeXstudio",
+                source_type=SourceType.UNKNOWN,
+            )
+    return None
+
+
 def parse_generic_citation(window_title: str) -> Citation | None:
     """Last-resort fallback: split on dash if no known reader app detected."""
     if not window_title:
@@ -425,6 +529,10 @@ _PARSERS = [
     parse_browser_citation,
     parse_jetbrains_citation,
     parse_code_editor_citation,
+    parse_sublime_citation,
+    parse_zotero_citation,
+    parse_libreoffice_citation,
+    parse_texstudio_citation,
     parse_generic_citation,
 ]
 

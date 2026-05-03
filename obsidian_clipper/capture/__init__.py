@@ -10,7 +10,11 @@ from .citation import (
     parse_epub_citation,
     parse_generic_citation,
     parse_jetbrains_citation,
+    parse_libreoffice_citation,
     parse_pdf_citation,
+    parse_sublime_citation,
+    parse_texstudio_citation,
+    parse_zotero_citation,
 )
 from .screenshot import (
     ScreenshotCapture,
@@ -41,4 +45,8 @@ __all__ = [
     "parse_browser_citation",
     "parse_code_editor_citation",
     "parse_jetbrains_citation",
+    "parse_sublime_citation",
+    "parse_zotero_citation",
+    "parse_libreoffice_citation",
+    "parse_texstudio_citation",
 ]

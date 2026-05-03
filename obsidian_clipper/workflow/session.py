@@ -109,9 +109,10 @@ class CaptureSession:
         Supported placeholders: {{text}}, {{ocr}}, {{citation}}, {{timestamp}},
         {{tags}}, {{source}}, {{source_type}}, {{date}}, {{time}}.
 
-        Supported conditionals: {{#if field}}...{{/if}} — content is included
-        only when the field is truthy. Nested placeholders inside conditionals
-        are also expanded.
+        Supported conditionals:
+        - {{#if field}}...{{/if}} — content when field is truthy
+        - {{#unless field}}...{{/unless}} — content when field is falsy
+        - {{#each tags}}..{{this}}..{{/each}} — iterate over tag list
         """
         content = self._resolve_template()
         if not content:
@@ -131,16 +132,36 @@ class CaptureSession:
             "time": ts_parts[1] if len(ts_parts) > 1 else "",
         }
 
-        # Process conditionals: {{#if field}}...{{/if}}
-        def _eval_conditional(match: re.Match[str]) -> str:
+        # Process {{#each field}}...{{this}}...{{/each}} loops
+        def _eval_each(match: re.Match[str]) -> str:
+            field = match.group(1).strip()
+            body = match.group(2)
+            items: list[str]
+            if field == "tags":
+                items = self.tags
+            else:
+                return ""
+            return "".join(body.replace("{{this}}", item) for item in items)
+
+        content = re.sub(r"\{\{#each\s+(\w+)\}\}(.*?)\{\{/each\}\}", _eval_each, content, flags=re.DOTALL)
+
+        # Process {{#if field}}...{{/if}}
+        def _eval_if(match: re.Match[str]) -> str:
             field = match.group(1).strip()
             body = match.group(2)
             value = subs.get(field, "")
-            if value:
-                return body
-            return ""
+            return body if value else ""
 
-        content = re.sub(r"\{\{#if\s+(\w+)\}\}(.*?)\{\{/if\}\}", _eval_conditional, content, flags=re.DOTALL)
+        content = re.sub(r"\{\{#if\s+(\w+)\}\}(.*?)\{\{/if\}\}", _eval_if, content, flags=re.DOTALL)
+
+        # Process {{#unless field}}...{{/unless}}
+        def _eval_unless(match: re.Match[str]) -> str:
+            field = match.group(1).strip()
+            body = match.group(2)
+            value = subs.get(field, "")
+            return body if not value else ""
+
+        content = re.sub(r"\{\{#unless\s+(\w+)\}\}(.*?)\{\{/unless\}\}", _eval_unless, content, flags=re.DOTALL)
 
         # Replace all placeholders
         for key, value in subs.items():

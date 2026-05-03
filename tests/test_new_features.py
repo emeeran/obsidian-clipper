@@ -136,7 +136,7 @@ class TestVaultConfig:
         assert os.environ.get("OBSIDIAN_API_KEY") == original_key
 
 
-class TestTemplateConditionals:
+class TestTemplateIfConditionals:
     """Tests for {{#if field}} conditionals."""
 
     def test_conditional_included_when_truthy(self):
@@ -210,6 +210,53 @@ class TestTemplatePlaceholders:
         session.template = "At: {{timestamp}}"
         md = session.to_markdown()
         assert "At: 2024-01-15 10:30:00" in md
+
+
+class TestTemplateConditionals:
+    """Tests for {{#unless}} and {{#each}} template features."""
+
+    def test_unless_shows_content_when_empty(self):
+        """{{#unless}} renders body when field is empty."""
+        session = CaptureSession(text="Hello")
+        session.template = "{{#unless citation}}No source{{/unless}}"
+        md = session.to_markdown()
+        assert "No source" in md
+
+    def test_unless_hides_content_when_present(self):
+        """{{#unless}} hides body when field has value."""
+        session = CaptureSession(
+            text="Hello",
+            citation=Citation(title="Test", source_type=SourceType.BROWSER),
+        )
+        session.template = "{{#unless text}}No text{{/unless}}"
+        md = session.to_markdown()
+        assert "No text" not in md
+
+    def test_each_tags(self):
+        """{{#each tags}} iterates over tags."""
+        session = CaptureSession(text="Hello", tags=["research", "paper"])
+        session.template = "{{#each tags}}#{{this}} {{/each}}"
+        md = session.to_markdown()
+        assert "#research" in md
+        assert "#paper" in md
+
+    def test_each_tags_empty(self):
+        """{{#each tags}} renders nothing when no tags."""
+        session = CaptureSession(text="Hello")
+        session.template = "Tags: {{#each tags}}#{{this}} {{/each}}"
+        md = session.to_markdown()
+        assert "Tags: " in md
+        # The {{#each}} block should render nothing — no tag names after #
+        assert "#research" not in md
+        assert "#paper" not in md
+
+    def test_if_and_unless_combined(self):
+        """Test using both {{#if}} and {{#unless}} in same template."""
+        session = CaptureSession(text="Hello")
+        session.template = "{{#if text}}Has text{{/if}} {{#unless ocr}}No OCR{{/unless}}"
+        md = session.to_markdown()
+        assert "Has text" in md
+        assert "No OCR" in md
 
 
 class TestExternalTemplateFiles:

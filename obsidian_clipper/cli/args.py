@@ -144,6 +144,16 @@ Environment variables:
         help="Open screenshot for annotation before saving (requires flameshot)",
     )
     parser.add_argument(
+        "--daily",
+        action="store_true",
+        help="Append capture to today's daily note (requires Obsidian Daily Notes)",
+    )
+    parser.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the created note in Obsidian after capture",
+    )
+    parser.add_argument(
         "--screenshot-tool",
         choices=["auto", "flameshot", "grim", "scrot"],
         default="auto",
