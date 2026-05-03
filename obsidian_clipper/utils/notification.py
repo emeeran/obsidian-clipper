@@ -4,67 +4,42 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from enum import Enum
 
 from .command import run_command_safely
 
 logger = logging.getLogger(__name__)
 
 
-class Urgency(Enum):
-    """Notification urgency levels."""
-
-    LOW = "low"
-    NORMAL = "normal"
-    CRITICAL = "critical"
-
-
 def notify(
     title: str,
     message: str,
-    urgency: Urgency | str = Urgency.NORMAL,
+    urgency: str = "normal",
     app_name: str = "Obsidian Clipper",
     icon: str | None = None,
 ) -> bool:
-    """Send a desktop notification.
-
-    Args:
-        title: Notification title.
-        message: Notification body.
-        urgency: Urgency level (low, normal, critical).
-        app_name: Application name for notification.
-        icon: Optional icon name or path.
-
-    Returns:
-        True if notification was sent successfully.
-    """
-    if isinstance(urgency, str):
-        urgency = Urgency(urgency.lower())
-
+    """Send a desktop notification via notify-send."""
     try:
-        cmd = ["notify-send", "-u", urgency.value, "-a", app_name]
+        cmd = ["notify-send", "-u", urgency, "-a", app_name]
         if icon:
             cmd.extend(["-i", icon])
         cmd.extend([title, message])
-
         run_command_safely(cmd, check=True)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fallback to console output
-        print(f"[{urgency.value.upper()}] {title}: {message}")
+        print(f"[{urgency.upper()}] {title}: {message}")
         return False
 
 
 def notify_success(title: str, message: str, icon: str | None = None) -> bool:
     """Send a success notification."""
-    return notify(title, message, Urgency.NORMAL, icon=icon)
+    return notify(title, message, "normal", icon=icon)
 
 
 def notify_error(title: str, message: str) -> bool:
     """Send an error notification."""
-    return notify(title, message, Urgency.CRITICAL)
+    return notify(title, message, "critical")
 
 
 def notify_warning(title: str, message: str) -> bool:
     """Send a warning notification."""
-    return notify(title, message, Urgency.LOW)
+    return notify(title, message, "low")

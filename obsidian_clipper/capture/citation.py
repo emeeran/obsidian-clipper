@@ -6,17 +6,37 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Protocol
+from typing import Any
 
 from .text import get_active_window_title
 
 logger = logging.getLogger(__name__)
 
-# Pre-compiled regex patterns for performance
-IGNORED_WINDOW_TITLE_PATTERNS = (
+# ---------------------------------------------------------------------------
+# Pre-compiled regex patterns
+# ---------------------------------------------------------------------------
+
+IGNORED_WINDOW_TITLE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"flameshot", re.IGNORECASE),
     re.compile(r"obsidian\s*clipper", re.IGNORECASE),
     re.compile(r"gnome\s*shell", re.IGNORECASE),
+]
+
+# Combined: matches any page-number representation in reader titles.
+#   "page 42" | "p. 42" | "pg. 42" | "(42/100)" | "42/100" | "42 of 100"
+PAGE_NUMBER_PATTERN = re.compile(
+    r"\b(?:page|p\.|pg\.)\s*(\d+)\b"
+    r"|\((\d+)\s*/\s*\d+\)"
+    r"|\b(\d+)\s*/\s*\d+\b"
+    r"|\b(\d+)\s+of\s+\d+\b",
+    re.IGNORECASE,
+)
+
+# Combined: trailing page segment after an em/regular dash.
+#   "— page 42" | "— 42/100" | "— 42 of 100"
+TRAILING_PAGE_PATTERN = re.compile(
+    r"\s*[—\-–]\s*(?:(?:page|p\.|pg\.)\s*\d+|\d+\s*/\s*\d+|\d+\s+of\s+\d+)\s*$",
+    re.IGNORECASE,
 )
 
 PDF_EPUB_CONTEXT_PATTERN = re.compile(
@@ -24,24 +44,44 @@ PDF_EPUB_CONTEXT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-PAGE_NUMBER_PATTERNS = [
-    re.compile(r"\b(?:page|p\.|pg\.)\s*(\d+)\b", re.IGNORECASE),
-    re.compile(r"\((\d+)\s*/\s*\d+\)", re.IGNORECASE),
-    re.compile(r"\b(\d+)\s*/\s*\d+\b", re.IGNORECASE),
-    re.compile(r"\b(\d+)\s+of\s+\d+\b", re.IGNORECASE),
-]
+EPUB_APP_PATTERN = re.compile(
+    r"(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF)", re.IGNORECASE
+)
 
-TRAILING_PAGE_PATTERNS = [
-    re.compile(r"\s*[—\-–]\s*(?:page|p\.|pg\.)\s*\d+\s*$", re.IGNORECASE),
-    re.compile(r"\s*[—\-–]\s*\d+\s*/\s*\d+\s*$", re.IGNORECASE),
-    re.compile(r"\s*[—\-–]\s*\d+\s+of\s+\d+\s*$", re.IGNORECASE),
-]
+# Browser title patterns: "Page Title — BrowserName"
+BROWSER_PATTERN = re.compile(
+    r"(.+?)\s*[—\-–]\s*"
+    r"(Google Chrome|Chrome|Mozilla Firefox|Firefox|Microsoft Edge|Edge"
+    r"|Brave|Chromium|Vivaldi)"
+)
+
+# Reader apps whose titles should be skipped by the generic fallback parser
+READER_APP_PATTERN = re.compile(
+    r"(Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)", re.IGNORECASE
+)
 
 # Citation detection retry configuration
-# Multiple attempts handle transient window focus issues from global hotkeys
 CITATION_RETRY_ATTEMPTS = 6
 CITATION_RETRY_DELAY = 0.12  # seconds between attempts
 CITATION_RETRY_BACKOFF = 1.0  # constant delay (no exponential backoff)
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _extract_page_number(text: str) -> str | None:
+    """Extract the first page number from common reader title patterns."""
+    match = PAGE_NUMBER_PATTERN.search(text)
+    if not match:
+        return None
+    # The combined pattern has four capture groups; exactly one matches.
+    return next(g for g in match.groups() if g is not None)
+
+
+def _strip_trailing_page_segment(title: str) -> str:
+    """Strip trailing page markers such as '- 44/320' from *title*."""
+    return TRAILING_PAGE_PATTERN.sub("", title).strip()
 
 
 def _looks_like_pdf_or_epub_context(window_title: str) -> bool:
@@ -49,21 +89,9 @@ def _looks_like_pdf_or_epub_context(window_title: str) -> bool:
     return bool(PDF_EPUB_CONTEXT_PATTERN.search(window_title))
 
 
-def _extract_page_number(text: str) -> str | None:
-    """Extract page number from common reader title patterns."""
-    for pattern in PAGE_NUMBER_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            return match.group(1)
-    return None
-
-
-def _strip_trailing_page_segment(title: str) -> str:
-    """Strip trailing page markers such as '— 44/320' from title."""
-    cleaned = title
-    for pattern in TRAILING_PAGE_PATTERNS:
-        cleaned = pattern.sub("", cleaned)
-    return cleaned.strip()
+# ---------------------------------------------------------------------------
+# Data classes
+# ---------------------------------------------------------------------------
 
 
 class SourceType(Enum):
@@ -95,33 +123,22 @@ class Citation:
     extra: dict[str, Any] = field(default_factory=dict)
 
     def format_markdown(self) -> str:
-        """Format citation as markdown string.
-
-        Returns:
-            Formatted citation string with em-dash prefix.
-        """
-        parts = []
-
+        """Format citation as markdown string."""
+        parts: list[str] = []
         if self.title:
             citation_title = self.title
             if self.page:
                 citation_title = f"{citation_title}, p. {self.page}"
             parts.append(f"*{citation_title}*")
-
         if self.source and self.source not in ("PDF Reader", "Browser", "Unknown"):
             parts.append(self.source)
-
         return " — " + " · ".join(parts) if parts else ""
 
     def __str__(self) -> str:
         return self.format_markdown()
 
     def get_auto_tags(self) -> list[str]:
-        """Suggest tags based on source type.
-
-        Returns:
-            List of tag strings (without # prefix).
-        """
+        """Suggest tags based on source type."""
         tag_map: dict[SourceType, list[str]] = {
             SourceType.PDF: ["pdf", "research"],
             SourceType.EPUB: ["epub", "reading"],
@@ -130,26 +147,26 @@ class Citation:
         return tag_map.get(self.source_type, [])[:]
 
 
-def parse_pdf_citation(window_title: str) -> Citation | None:
-    """Parse window title to extract PDF citation info.
+# ---------------------------------------------------------------------------
+# Document parsers (PDF + EPUB share core logic)
+# ---------------------------------------------------------------------------
 
-    Supports:
-    - Evince: "Document.pdf — Page 42"
-    - Zathura: "Document.pdf (42/100)"
-    - Generic PDF patterns
 
-    Args:
-        window_title: Window title string.
+def _parse_document_citation(
+    window_title: str,
+    source_type: SourceType,
+) -> Citation | None:
+    """Parse a window title from a PDF or EPUB reader.
 
-    Returns:
-        Citation object if PDF detected, None otherwise.
+    Supports Evince, Zathura, Okular, Foliate, Calibre, Thorium, FBReader,
+    and generic patterns (including ``.pdf`` / ``.epub`` in the title).
     """
     if not window_title:
         return None
 
     page_number = _extract_page_number(window_title)
 
-    # Evince: "Document.pdf — Page 42"
+    # -- Evince: "Document.pdf — Page 42" ---------------------------------
     evince_match = re.match(
         r"(.+\.pdf)\s*[—\-–]\s*Page\s*(\d+)", window_title, re.IGNORECASE
     )
@@ -158,20 +175,22 @@ def parse_pdf_citation(window_title: str) -> Citation | None:
             title=evince_match.group(1).strip(),
             page=evince_match.group(2),
             source="Evince",
-            source_type=SourceType.PDF,
+            source_type=source_type,
         )
 
-    # Zathura: "Document.pdf (42/100)"
-    zathura_match = re.match(r"(.+\.pdf)\s*\((\d+)/\d+\)", window_title, re.IGNORECASE)
+    # -- Zathura: "Document.pdf (42/100)" ----------------------------------
+    zathura_match = re.match(
+        r"(.+\.pdf)\s*\((\d+)/\d+\)", window_title, re.IGNORECASE
+    )
     if zathura_match:
         return Citation(
             title=zathura_match.group(1).strip(),
             page=zathura_match.group(2),
             source="Zathura",
-            source_type=SourceType.PDF,
+            source_type=source_type,
         )
 
-    # Okular: "Document.pdf : Page 42 - Okular" or "Document Title — Okular"
+    # -- Okular: "Doc.pdf : Page 42 - Okular" ------------------------------
     okular_match = re.match(
         r"(.+\.pdf)\s*:\s*Page\s*(\d+)\s*-\s*Okular", window_title, re.IGNORECASE
     )
@@ -180,174 +199,162 @@ def parse_pdf_citation(window_title: str) -> Citation | None:
             title=okular_match.group(1).strip(),
             page=okular_match.group(2),
             source="Okular",
-            source_type=SourceType.PDF,
+            source_type=source_type,
         )
 
-    # Okular: "Document Title — Page 42 — Okular"
-    okular_title_page_match = re.match(
+    # -- Okular: "Title — Page 42 — Okular" --------------------------------
+    okular_tp = re.match(
         r"(.+?)\s*[—\-–]\s*Page\s*(\d+)\s*[—\-–]\s*Okular",
         window_title,
         re.IGNORECASE,
     )
-    if okular_title_page_match:
+    if okular_tp:
         return Citation(
-            title=okular_title_page_match.group(1).strip(),
-            page=okular_title_page_match.group(2),
+            title=okular_tp.group(1).strip(),
+            page=okular_tp.group(2),
             source="Okular",
-            source_type=SourceType.PDF,
+            source_type=source_type,
         )
 
-    # Okular without .pdf in title: "Document Title — Okular"
-    okular_generic = re.match(r"(.+?)\s*[—\-–]\s*Okular", window_title, re.IGNORECASE)
+    # -- Okular (generic): "Title — Okular" with page elsewhere -------------
+    okular_generic = re.match(
+        r"(.+?)\s*[—\-–]\s*Okular", window_title, re.IGNORECASE
+    )
     if okular_generic:
         title = _strip_trailing_page_segment(okular_generic.group(1).strip())
-        # Only match if it looks like a document title and page was detected.
         if title and len(title) > 3 and page_number:
             return Citation(
                 title=title,
                 page=page_number,
                 source="Okular",
-                source_type=SourceType.PDF,
+                source_type=source_type,
             )
 
-    # Generic PDF pattern - prefer longer matches (e.g., full filename with spaces)
-    # Match any non-newline characters before .pdf
-    generic_match = re.search(r"([^\n]+\.pdf)", window_title, re.IGNORECASE)
+    # -- EPUB app with named reader (Foliate, Calibre, …) ------------------
+    if source_type is SourceType.EPUB:
+        epub_app_match = EPUB_APP_PATTERN.search(window_title)
+        if epub_app_match and page_number:
+            source = epub_app_match.group(1)
+            title_match = re.match(
+                r"(.+?)\s*[—\-–]\s*(?:Page|p\.)\s*\d+",
+                window_title,
+                re.IGNORECASE,
+            )
+            if title_match:
+                title = _strip_trailing_page_segment(title_match.group(1).strip())
+            else:
+                title = _strip_trailing_page_segment(
+                    re.sub(
+                        r"\s*[—\-–]\s*(Foliate|Calibre|Thorium|FBReader|Atris|Xreader|MuPDF).*",
+                        "",
+                        window_title,
+                        flags=re.IGNORECASE,
+                    ).strip()
+                )
+            if title and len(title) > 3:
+                return Citation(
+                    title=title,
+                    page=page_number,
+                    source=source,
+                    source_type=SourceType.EPUB,
+                )
+
+    # -- Generic file extension match (.pdf / .epub) -----------------------
+    ext = r"\.pdf" if source_type is SourceType.PDF else r"\.epub"
+    generic_match = re.search(
+        rf"([^\n]+{ext})", window_title, re.IGNORECASE
+    )
     if generic_match:
         if not page_number:
             return None
-
         return Citation(
             title=generic_match.group(1).strip(),
             page=page_number,
-            source="PDF Reader",
-            source_type=SourceType.PDF,
+            source="PDF Reader" if source_type is SourceType.PDF else "EPUB Reader",
+            source_type=source_type,
         )
 
-    # Reader-style title without .pdf but with explicit page and known PDF app
-    reader_match = re.search(r"(Okular|Evince|Zathura)", window_title, re.IGNORECASE)
-    if reader_match and page_number:
-        title = re.sub(
-            r"\s*[—\-–]\s*(Okular|Evince|Zathura).*",
-            "",
-            window_title,
-            flags=re.IGNORECASE,
-        ).strip()
-        title = _strip_trailing_page_segment(title)
-        if title and len(title) > 3:
-            return Citation(
-                title=title,
-                page=page_number,
-                source=reader_match.group(1),
-                source_type=SourceType.PDF,
+    # -- Known reader app in title without file extension -------------------
+    if source_type is SourceType.PDF:
+        reader_match = re.search(r"(Okular|Evince|Zathura)", window_title, re.IGNORECASE)
+        if reader_match and page_number:
+            title = _strip_trailing_page_segment(
+                re.sub(
+                    r"\s*[—\-–]\s*(Okular|Evince|Zathura).*",
+                    "",
+                    window_title,
+                    flags=re.IGNORECASE,
+                ).strip()
             )
+            if title and len(title) > 3:
+                return Citation(
+                    title=title,
+                    page=page_number,
+                    source=reader_match.group(1),
+                    source_type=SourceType.PDF,
+                )
 
     return None
 
 
-def parse_epub_citation(window_title: str) -> Citation | None:
-    """Parse window title to extract EPUB citation info with required page.
+def parse_pdf_citation(window_title: str) -> Citation | None:
+    """Parse window title to extract PDF citation info.
 
-    Supports patterns such as:
-    - "Book Title.epub — Page 12"
-    - "Book Title — Page 12 — Foliate"
-    - "Book Title - Page 12 - Calibre"
+    Supports Evince, Zathura, Okular, and generic PDF patterns.
+    """
+    return _parse_document_citation(window_title, SourceType.PDF)
+
+
+def parse_epub_citation(window_title: str) -> Citation | None:
+    """Parse window title to extract EPUB citation info.
+
+    Supports Foliate, Calibre, Thorium, FBReader, and generic EPUB patterns.
     """
     if not window_title:
         return None
-
-    if "epub" not in window_title.lower() and not re.search(
-        r"(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF)",
-        window_title,
-        re.IGNORECASE,
+    # Guard: only proceed if this looks like an EPUB context
+    if (
+        ".epub" not in window_title.lower()
+        and not EPUB_APP_PATTERN.search(window_title)
     ):
         return None
+    return _parse_document_citation(window_title, SourceType.EPUB)
 
-    page_number = _extract_page_number(window_title)
-    if not page_number:
-        return None
 
-    source_match = re.search(
-        r"(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF)",
-        window_title,
-        re.IGNORECASE,
-    )
-    source = source_match.group(1) if source_match else "EPUB Reader"
-
-    title_match = re.match(
-        r"(.+?)\s*[—\-–]\s*(?:Page|p\.)\s*\d+", window_title, re.IGNORECASE
-    )
-    if title_match:
-        title = title_match.group(1).strip()
-    else:
-        title = re.sub(
-            r"\s*[—\-–]\s*(Foliate|Calibre|Thorium|FBReader|Atril|Xreader|MuPDF).*",
-            "",
-            window_title,
-            flags=re.IGNORECASE,
-        ).strip()
-    title = _strip_trailing_page_segment(title)
-
-    return Citation(
-        title=title,
-        page=page_number,
-        source=source,
-        source_type=SourceType.EPUB,
-    )
+# ---------------------------------------------------------------------------
+# Browser / editor / generic parsers
+# ---------------------------------------------------------------------------
 
 
 def parse_browser_citation(window_title: str) -> Citation | None:
     """Parse window title to extract browser source info.
 
-    Supports Chrome, Firefox, Edge, Brave, and other browsers.
-
-    Args:
-        window_title: Window title string.
-
-    Returns:
-        Citation object if browser detected, None otherwise.
+    Supports Chrome, Firefox, Edge, Brave, Chromium, and Vivaldi.
     """
     if not window_title:
         return None
-
-    # Browser match: "Page Title - Google Chrome"
-    browser_patterns = [
-        r"(.+?)\s*[—\-–]\s*(Google Chrome|Chrome)",
-        r"(.+?)\s*[—\-–]\s*(Mozilla Firefox|Firefox)",
-        r"(.+?)\s*[—\-–]\s*(Microsoft Edge|Edge)",
-        r"(.+?)\s*[—\-–]\s*(Brave)",
-        r"(.+?)\s*[—\-–]\s*(Chromium)",
-        r"(.+?)\s*—\s*(Vivaldi)",
-    ]
-
-    for pattern in browser_patterns:
-        match = re.match(pattern, window_title)
-        if match:
-            return Citation(
-                title=match.group(1).strip(),
-                source=match.group(2),
-                source_type=SourceType.BROWSER,
-            )
-
+    match = BROWSER_PATTERN.match(window_title)
+    if match:
+        return Citation(
+            title=match.group(1).strip(),
+            source=match.group(2),
+            source_type=SourceType.BROWSER,
+        )
     return None
 
 
 def parse_code_editor_citation(window_title: str) -> Citation | None:
     """Parse window title to extract code editor info.
 
-    Supports VSCode, Neovim, and other editors.
-
-    Args:
-        window_title: Window title string.
-
-    Returns:
-        Citation object if code editor detected, None otherwise.
+    Supports VSCode and generic ``filename.ext - ProjectName`` patterns.
     """
     if not window_title:
         return None
 
     # VSCode: "filename.py - project - Visual Studio Code"
-    vscode_match = re.match(r"(.+?)\s*-\s*(.+?)\s*-\s*Visual Studio Code", window_title)
+    vscode_match = re.match(
+        r"(.+?)\s*-\s*(.+?)\s*-\s*Visual Studio Code", window_title
+    )
     if vscode_match:
         return Citation(
             title=vscode_match.group(1).strip(),
@@ -364,49 +371,29 @@ def parse_code_editor_citation(window_title: str) -> Citation | None:
             source=generic_match.group(2).strip(),
             source_type=SourceType.UNKNOWN,
         )
-
     return None
 
 
 def parse_generic_citation(window_title: str) -> Citation | None:
-    """Parse citation from generic app titles as a last-resort fallback.
-
-    Expected patterns:
-    - "Page title - App Name"
-    - "Page title — App Name"
-
-    Skips known PDF/EPUB reader apps so mandatory page rules remain enforced.
-    """
+    """Last-resort fallback: split on dash if no known reader app detected."""
     if not window_title:
         return None
-
-    if re.search(
-        r"(Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)",
-        window_title,
-        re.IGNORECASE,
-    ):
+    if READER_APP_PATTERN.search(window_title):
         return None
-
     match = re.match(r"(.+?)\s*[—\-–]\s*(.+)$", window_title)
     if not match:
         return None
-
-    title = match.group(1).strip()
-    source = match.group(2).strip()
-
+    title, source = match.group(1).strip(), match.group(2).strip()
     if not title or not source:
         return None
-
-    return Citation(
-        title=title,
-        source=source,
-        source_type=SourceType.UNKNOWN,
-    )
+    return Citation(title=title, source=source, source_type=SourceType.UNKNOWN)
 
 
-# Parser registry: ordered list of citation parsers
-# Use @citation_parser to register additional parsers from external code.
-CITATION_PARSERS: list[CitationParserFunc] = [
+# ---------------------------------------------------------------------------
+# Parser list and top-level dispatch
+# ---------------------------------------------------------------------------
+
+_PARSERS = [
     parse_pdf_citation,
     parse_epub_citation,
     parse_browser_citation,
@@ -415,66 +402,42 @@ CITATION_PARSERS: list[CitationParserFunc] = [
 ]
 
 
-class CitationParserFunc(Protocol):
-    """Protocol for citation parser functions."""
-
-    def __call__(self, window_title: str) -> Citation | None: ...
-
-
-def citation_parser(func: CitationParserFunc) -> CitationParserFunc:
-    """Register a function as a citation parser.
-
-    Decorated parsers are appended to CITATION_PARSERS and tried
-    in order during citation detection.
-
-    Example:
-        @citation_parser
-        def parse_myapp_citation(window_title: str) -> Citation | None:
-            ...
-    """
-    CITATION_PARSERS.append(func)
-    return func
-
-
 def parse_citation_from_window_title(window_title: str) -> Citation | None:
     """Parse a citation directly from a given window title."""
     if not window_title:
         return None
 
-    for parser in CITATION_PARSERS:
+    for parser in _PARSERS:
         citation = parser(window_title)
         if citation:
             return citation
 
+    # PDF/EPUB context detected but no parser matched — return None so the
+    # caller knows we deliberately skipped it (missing page number, etc.).
     if _looks_like_pdf_or_epub_context(window_title):
         return None
 
-    normalized_title = window_title.strip()
-    if not normalized_title:
+    normalized = window_title.strip()
+    if not normalized:
         return None
+    return Citation(title=normalized, source_type=SourceType.UNKNOWN)
 
-    return Citation(
-        title=normalized_title,
-        source_type=SourceType.UNKNOWN,
-    )
+
+# ---------------------------------------------------------------------------
+# Active-window helpers
+# ---------------------------------------------------------------------------
 
 
 def _is_ignored_window(window_title: str) -> bool:
     """Check if window title should be ignored."""
-    return any(
-        pattern.search(window_title) for pattern in IGNORED_WINDOW_TITLE_PATTERNS
-    )
+    return any(p.search(window_title) for p in IGNORED_WINDOW_TITLE_PATTERNS)
 
 
 def _try_get_citation() -> Citation | None:
     """Single attempt to get citation from active window."""
     window_title = get_active_window_title()
-    if not window_title:
+    if not window_title or _is_ignored_window(window_title):
         return None
-
-    if _is_ignored_window(window_title):
-        return None
-
     return parse_citation_from_window_title(window_title)
 
 

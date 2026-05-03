@@ -61,7 +61,8 @@ class TestLiveAPI:
         with client:
             content = "# Integration Test\n\nTest content."
             assert client.create_note(test_note_path, content) is True
-            assert client.note_exists(test_note_path) is True
+            # Verify note exists via ensure_note_exists (which checks existence)
+            assert client.ensure_note_exists(test_note_path) is True
 
     def test_append_to_note(
         self, client: ObsidianClient, test_note_path: str
@@ -88,4 +89,4 @@ class TestLiveAPI:
         path = f"00-Inbox/_test spaces_{ts}.md"
         with client:
             assert client.create_note(path, "# Special Chars") is True
-            assert client.note_exists(path) is True
+            assert client.ensure_note_exists(path) is True

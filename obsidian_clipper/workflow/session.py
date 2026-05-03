@@ -113,16 +113,10 @@ class CaptureSession:
         return content
 
     def _render_frontmatter(self, tags: list[str]) -> str:
-        """Render YAML frontmatter with tags."""
         if not tags:
             return ""
-        parts = ["---\n", "tags:\n"]
-        for tag in tags:
-            tag = tag.strip()
-            if tag:
-                parts.append(f"  - {tag.lstrip('#')}\n")
-        parts.append("---\n\n")
-        return "".join(parts)
+        tag_lines = "\n".join(f"  - {t.strip().lstrip('#')}" for t in tags if t.strip())
+        return f"---\ntags:\n{tag_lines}\n---\n\n"
 
     def _render_source_label(self) -> str:
         """Render source label for callout title."""
@@ -163,31 +157,8 @@ class CaptureSession:
             lines.append(">")
         return "\n".join(lines) + "\n"
 
-    def _render_text_callout(self) -> str:
-        """Render text capture as Obsidian callout."""
-        body = self.text.split("\n") if self.text else []
-        return self._render_callout("quote", body)
-
-    def _render_screenshot_callout(self) -> str:
-        """Render screenshot capture as Obsidian callout."""
-        body = []
-        if self.screenshot_success and self.img_filename:
-            body.append(f"![[{self.img_filename}]]")
-        # Include text alongside screenshot when both exist
-        if self.text:
-            if body:
-                body.append("")
-            body.extend(self.text.split("\n"))
-        return self._render_callout("image", body)
-
     def to_markdown(self, include_frontmatter: bool = True) -> str:
-        """Convert captured content to markdown string.
-
-        Args:
-            include_frontmatter: If True, include YAML frontmatter (for new notes).
-                False for append mode to avoid repeated frontmatter.
-        """
-        # Merge user tags with auto-generated tags from citation source
+        """Convert captured content to markdown string."""
         all_tags = list(self.tags)
         if self.citation:
             for tag in self.citation.get_auto_tags():
@@ -196,21 +167,24 @@ class CaptureSession:
 
         parts: list[str] = []
 
-        # Frontmatter only for new notes, not appends
         if include_frontmatter:
             parts.append(self._render_frontmatter(all_tags))
 
-        # Date header (just date, no seconds)
-        date, time = self.timestamp.split(" ") if " " in self.timestamp else (self.timestamp, "")
+        date = self.timestamp.split(" ")[0] if " " in self.timestamp else self.timestamp
         parts.append(f"### {date}\n\n")
 
         if self.template:
             parts.append(self._render_template())
             parts.append("\n")
         elif self.screenshot_success and self.img_filename:
-            parts.append(self._render_screenshot_callout())
+            body = [f"![[{self.img_filename}]]"]
+            if self.text:
+                body.append("")
+                body.extend(self.text.split("\n"))
+            parts.append(self._render_callout("image", body))
         else:
-            parts.append(self._render_text_callout())
+            body = self.text.split("\n") if self.text else []
+            parts.append(self._render_callout("quote", body))
 
         return "".join(parts)
 

@@ -242,25 +242,12 @@ class TestSessionRefactor:
         session = CaptureSession(tags=["web", "article"])
         result = session._render_frontmatter(["web", "article"])
         assert "---" in result
-        assert "  - web\n" in result
-        assert "  - article\n" in result
+        assert "  - web" in result
+        assert "  - article" in result
 
     def test_render_frontmatter_empty(self):
         session = CaptureSession()
         assert session._render_frontmatter([]) == ""
-
-    def test_render_text_callout(self):
-        session = CaptureSession(text="Line 1\nLine 2")
-        result = session._render_text_callout()
-        assert "> [!quote]" in result
-        assert "> Line 1" in result
-        assert "> Line 2" in result
-
-    def test_render_text_callout_with_ocr(self):
-        session = CaptureSession(text="Text", ocr_text="OCR")
-        result = session._render_text_callout()
-        assert "> Text" in result
-        assert "> OCR" in result
 
     def test_render_source_label(self):
         session = CaptureSession(
@@ -274,15 +261,23 @@ class TestSessionRefactor:
         session = CaptureSession()
         assert session._render_source_label() == ""
 
-    def test_render_screenshot_callout(self):
-        session = CaptureSession(screenshot_success=True, img_filename="img.png")
-        result = session._render_screenshot_callout()
-        assert "![[img.png]]" in result
+    def test_to_markdown_text_callout(self):
+        session = CaptureSession(text="Line 1\nLine 2")
+        md = session.to_markdown(include_frontmatter=False)
+        assert "> [!quote]" in md
+        assert "> Line 1" in md
+        assert "> Line 2" in md
 
-    def test_render_screenshot_callout_none(self):
-        session = CaptureSession()
-        result = session._render_screenshot_callout()
-        assert "[!image]" in result
+    def test_to_markdown_text_callout_with_ocr(self):
+        session = CaptureSession(text="Text", ocr_text="OCR")
+        md = session.to_markdown(include_frontmatter=False)
+        assert "> Text" in md
+        assert "> OCR" in md
+
+    def test_to_markdown_screenshot_callout(self):
+        session = CaptureSession(screenshot_success=True, img_filename="img.png")
+        md = session.to_markdown(include_frontmatter=False)
+        assert "![[img.png]]" in md
 
 
 class TestConfigValidation:

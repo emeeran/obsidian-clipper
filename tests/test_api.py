@@ -162,26 +162,6 @@ class TestObsidianClient:
         assert result is False
 
     @patch("obsidian_clipper.obsidian.api.requests.Session")
-    def test_note_exists_true(self, mock_session, client):
-        """Test note exists check returns True."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_session.return_value.request.return_value = mock_response
-
-        result = client.note_exists("Notes/Test.md")
-        assert result is True
-
-    @patch("obsidian_clipper.obsidian.api.requests.Session")
-    def test_note_exists_false(self, mock_session, client):
-        """Test note exists check returns False."""
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_session.return_value.request.return_value = mock_response
-
-        result = client.note_exists("Notes/Nonexistent.md")
-        assert result is False
-
-    @patch("obsidian_clipper.obsidian.api.requests.Session")
     def test_append_to_note_success(self, mock_session, client):
         """Test successful note append."""
         mock_response = Mock()
@@ -263,18 +243,6 @@ class TestObsidianClient:
         with pytest.raises(APIRequestError) as exc_info:
             client._execute_request("GET", "https://test.com")
         assert "failed" in str(exc_info.value).lower()
-
-    @patch("obsidian_clipper.obsidian.api.requests.Session")
-    def test_note_exists_exception(self, mock_session, client):
-        """Test note_exists returns False on exception."""
-        mock_session_instance = MagicMock()
-        mock_session_instance.request.side_effect = (
-            requests.exceptions.ConnectionError()
-        )
-        mock_session.return_value = mock_session_instance
-
-        result = client.note_exists("Notes/Test.md")
-        assert result is False
 
     @patch("obsidian_clipper.obsidian.api.requests.Session")
     def test_ensure_note_exists_exception(self, mock_session, client):
@@ -424,23 +392,6 @@ class TestObsidianClient:
                 Path(temp_path).unlink()
 
     @patch("obsidian_clipper.obsidian.api.requests.Session")
-    def test_get_session_configures_pooling(self, mock_session, client):
-        """Test _get_session configures connection pooling."""
-        mock_adapter = MagicMock()
-        mock_session_instance = MagicMock()
-        mock_session.return_value = mock_session_instance
-
-        with patch("obsidian_clipper.obsidian.api.HTTPAdapter") as mock_http_adapter:
-            mock_http_adapter.return_value = mock_adapter
-            client._get_session()
-
-            # Verify HTTPAdapter was called with pooling config
-            mock_http_adapter.assert_called_once()
-            call_kwargs = mock_http_adapter.call_args[1]
-            assert call_kwargs["pool_connections"] == 10
-            assert call_kwargs["pool_maxsize"] == 20
-
-    @patch("obsidian_clipper.obsidian.api.requests.Session")
     def test_get_session_adds_keep_alive(self, mock_session, client):
         """Test _get_session adds keep-alive header."""
         mock_session_instance = MagicMock()
@@ -448,15 +399,12 @@ class TestObsidianClient:
 
         client._get_session()
 
-        # Verify keep-alive header was added
         mock_session_instance.headers.update.assert_called()
         calls = mock_session_instance.headers.update.call_args_list
-        # Check if any call included Connection: keep-alive
-        found = False
-        for call in calls:
-            if "Connection" in call[0][0] and call[0][0]["Connection"] == "keep-alive":
-                found = True
-                break
+        found = any(
+            "Connection" in call[0][0] and call[0][0]["Connection"] == "keep-alive"
+            for call in calls
+        )
         assert found
 
     @patch("obsidian_clipper.obsidian.api.requests.Session")

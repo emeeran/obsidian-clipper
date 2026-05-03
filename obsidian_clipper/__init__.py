@@ -16,7 +16,7 @@ Example usage:
 
 from __future__ import annotations
 
-from ._version import __author__, __description__, __license__, __version__
+from ._version import __version__
 from .capture import (
     Citation,
     ScreenshotCapture,
@@ -41,17 +41,13 @@ from .exceptions import (
     OCRError,
     PathSecurityError,
     ScreenshotError,
-    TextCaptureError,
 )
 from .obsidian import ObsidianClient, validate_path
-from .utils import Urgency, notify, notify_error, notify_success
+from .utils import notify, notify_error, notify_success
 
 __all__ = [
     # Version
     "__version__",
-    "__author__",
-    "__description__",
-    "__license__",
     # Configuration
     "Config",
     "get_config",
@@ -64,7 +60,6 @@ __all__ = [
     "CaptureError",
     "ScreenshotError",
     "OCRError",
-    "TextCaptureError",
     "PathSecurityError",
     # API Client
     "ObsidianClient",
@@ -87,5 +82,4 @@ __all__ = [
     "notify",
     "notify_success",
     "notify_error",
-    "Urgency",
 ]
