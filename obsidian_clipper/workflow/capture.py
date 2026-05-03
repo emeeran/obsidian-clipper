@@ -183,7 +183,7 @@ def process_and_save_content(
             if session.screenshot_path.exists():
                 session.screenshot_path.unlink()
 
-    content = session.to_markdown()
+    content = session.to_markdown(include_frontmatter=not append)
 
     if append:
         # target_dir is the note path to append to

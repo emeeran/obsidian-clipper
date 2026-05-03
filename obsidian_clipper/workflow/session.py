@@ -123,41 +123,71 @@ class CaptureSession:
         parts.append("---\n\n")
         return "".join(parts)
 
-    def _render_blockquote(self) -> str:
-        """Render text and OCR content as blockquote."""
-        parts = []
-        if self.text:
-            parts.extend(f"> {line}\n" for line in self.text.split("\n"))
-        if self.ocr_text:
-            if self.text:
-                parts.append(">\n")
-            parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
-        return "".join(parts)
-
-    def _render_citation(self) -> str:
-        """Render citation as markdown line."""
+    def _render_source_label(self) -> str:
+        """Render source label for callout title."""
         if not self.citation:
             return ""
-        citation_md = self.citation.format_markdown()
-        if not citation_md:
-            return ""
-        return f"> \n{citation_md}\n"
+        title = self.citation.title or ""
+        source = self.citation.source or ""
+        page = self.citation.page
+        # Clean source name
+        if source in ("PDF Reader", "Browser", "Unknown", "Window"):
+            source = ""
+        parts = []
+        if title:
+            display = title
+            if page:
+                display += f", p.{page}"
+            parts.append(display)
+        if source:
+            parts.append(source)
+        return " — " + " · ".join(parts) if parts else ""
+
+    def _render_text_callout(self) -> str:
+        """Render text capture as Obsidian callout with justified body."""
+        lines = []
+        # Callout header with source attribution
+        source_label = self._render_source_label()
+        lines.append(f"> [!quote]{source_label}")
+        lines.append(">")
+        # Body text as justified block
+        if self.text:
+            for line in self.text.split("\n"):
+                lines.append(f"> {line}")
+            lines.append(">")
+        if self.ocr_text:
+            for line in self.ocr_text.split("\n"):
+                lines.append(f"> {line}")
+            lines.append(">")
+        return "\n".join(lines) + "\n"
+
+    def _render_screenshot_callout(self) -> str:
+        """Render screenshot capture as Obsidian callout."""
+        lines = []
+        source_label = self._render_source_label()
+        lines.append(f"> [!image]{source_label}")
+        lines.append(">")
+        if self.screenshot_success and self.img_filename:
+            lines.append(f"> ![[{self.img_filename}]]")
+            lines.append(">")
+        if self.ocr_text:
+            for line in self.ocr_text.split("\n"):
+                lines.append(f"> {line}")
+            lines.append(">")
+        return "\n".join(lines) + "\n"
 
     def _render_screenshot(self) -> str:
-        """Render screenshot embed."""
+        """Render screenshot embed (fallback for non-callout mode)."""
         if self.screenshot_success and self.img_filename:
             return f"\n![[{self.img_filename}]]\n"
         return ""
 
-    def to_markdown(self) -> str:
+    def to_markdown(self, include_frontmatter: bool = True) -> str:
         """Convert captured content to markdown string.
 
-        Format (Standalone Note):
-        - YAML frontmatter (if tags present)
-        - H1 title with timestamp
-        - Blockquote with text + OCR
-        - Citation line outside blockquote (italics, bullet separator)
-        - Screenshot embed (if captured)
+        Args:
+            include_frontmatter: If True, include YAML frontmatter (for new notes).
+                False for append mode to avoid repeated frontmatter.
         """
         # Merge user tags with auto-generated tags from citation source
         all_tags = list(self.tags)
@@ -166,17 +196,23 @@ class CaptureSession:
                 if tag not in all_tags:
                     all_tags.append(tag)
 
-        parts = [self._render_frontmatter(all_tags)]
-        parts.append(f"### 📌 {self.timestamp}\n\n")
+        parts: list[str] = []
+
+        # Frontmatter only for new notes, not appends
+        if include_frontmatter:
+            parts.append(self._render_frontmatter(all_tags))
+
+        # Date header (just date, no seconds)
+        date, time = self.timestamp.split(" ") if " " in self.timestamp else (self.timestamp, "")
+        parts.append(f"### {date}\n\n")
 
         if self.template:
             parts.append(self._render_template())
             parts.append("\n")
+        elif self.screenshot_success and self.img_filename:
+            parts.append(self._render_screenshot_callout())
         else:
-            parts.append(self._render_blockquote())
-            parts.append(self._render_citation())
-
-        parts.append(self._render_screenshot())
+            parts.append(self._render_text_callout())
 
         return "".join(parts)
 
