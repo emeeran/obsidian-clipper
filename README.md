@@ -1,54 +1,42 @@
 # Obsidian Clipper
 
-A streamlined Linux tool for capturing highlighted text, screenshots, and OCR'ed content directly into your Obsidian vault via the Local REST API.
+A Linux command-line tool for capturing highlighted text, screenshots, and OCR content directly into your Obsidian vault via the Local REST API plugin.
 
 ## Features
 
-- **Text Capture**: Instantly save any highlighted text (X11/Wayland).
-- **Screenshot Capture**: Select an area and save it as an image in your vault.
-- **Auto-OCR**: Automatically extracts text from captured screenshots using Tesseract.
-- **Citation Detection**: Automatically extracts PDF page numbers and browser titles.
-- **Desktop Notifications**: Visual feedback for every capture.
-- **Note Integration**: Appends content to a specific note with timestamps.
-- **Secure Configuration**: Environment variables and .env file support.
-- **Modular Architecture**: Clean, testable, and extensible codebase.
+- **Text Capture** — Save any highlighted text (X11 primary selection or Wayland clipboard)
+- **Screenshot Capture** — Select an area and save it as an image in your vault
+- **Auto-OCR** — Extract text from screenshots using Tesseract
+- **Citation Detection** — Auto-detect PDF page numbers, browser titles, and EPUB sources from the active window
+- **Capture Profiles** — Built-in profiles for research, quick capture, code, and web clipping
+- **Multi-Vault** — Switch between Obsidian vaults with a single flag
+- **Templates** — Custom note templates with placeholders and conditionals
+- **Desktop Notifications** — Visual feedback for every capture
+- **Secure** — Path traversal protection, no shell injection, env-based API keys
 
-## Quick Setup
+## Requirements
 
-### 1. Requirements
+**Python 3.10+** and the Obsidian [Local REST API](https://github.com/cpbotha/obsidian-local-rest-api) plugin.
 
-**System Dependencies (Ubuntu/Debian):**
+**System Dependencies (Debian/Ubuntu):**
+
+| X11 | Wayland |
+|-----|---------|
+| `xclip` | `wl-clipboard` |
+| `flameshot` (recommended) or `scrot` | `grim` + `slurp` |
+| `xdotool` | `hyprctl` or `swaymsg` |
+| `tesseract-ocr` | `tesseract-ocr` |
+| `libnotify-bin` | `libnotify-bin` |
+
 ```bash
-# X11 (Default)
+# X11
 sudo apt install xclip flameshot tesseract-ocr libnotify-bin xdotool
 
 # Wayland
-sudo apt install wl-clipboard grim slurp tesseract-ocr
+sudo apt install wl-clipboard grim slurp tesseract-ocr libnotify-bin
 ```
 
-**Python Dependencies:**
-```bash
-# Using uv (recommended)
-uv sync
-
-# Or using pip
-pip install -r requirements.txt
-```
-
-### 2. Obsidian Configuration
-
-1. Install the **Local REST API** plugin in Obsidian.
-2. Enable it and copy your **API Key**.
-3. Create a `.env` file from the example:
-   ```bash
-   cp .env.example .env
-   ```
-4. Edit `.env` and paste your API key:
-   ```
-   OBSIDIAN_API_KEY=your_api_key_here
-   ```
-
-### 3. Installation
+## Installation
 
 **Option A: Install with uv (recommended)**
 ```bash
@@ -56,11 +44,72 @@ uv sync
 uv pip install -e .
 ```
 
-**Option B: Manual installation**
+**Option B: Install with pip**
 ```bash
-mkdir -p ~/.local/bin
-cp obsidian-clipper.py ~/.local/bin/obsidian-clipper
-chmod +x ~/.local/bin/obsidian-clipper
+pip install -e .
+```
+
+**Option C: Docker**
+```bash
+docker compose build
+```
+
+## Quick Start
+
+### 1. Set up Obsidian
+
+1. Install the **Local REST API** community plugin in Obsidian
+2. Enable the plugin and copy the **API Key** from its settings
+
+### 2. Configure
+
+```bash
+cp .env.example .env
+# Edit .env and paste your API key
+```
+
+### 3. Capture
+
+```bash
+# Highlight text anywhere, then run:
+obsidian-clipper
+
+# Select a screen area, OCR it, and save to Obsidian:
+obsidian-clipper -s
+```
+
+## Usage
+
+```bash
+# Text capture with auto-detected citation
+obsidian-clipper
+
+# Screenshot + OCR + citation
+obsidian-clipper -s
+
+# Save to a specific note
+obsidian-clipper -n "Research/Machine Learning.md"
+
+# Append to an existing note
+obsidian-clipper --append -n "Journal.md"
+
+# Use the research profile (auto-tags, OCR, append mode)
+obsidian-clipper --profile research
+
+# Screenshot with German OCR
+obsidian-clipper -s --ocr-lang deu
+
+# Preview capture without saving
+obsidian-clipper --dry-run
+
+# Interactive note picker (requires fzf)
+obsidian-clipper --pick
+
+# Use a custom template
+obsidian-clipper --template "{{#if citation}}*{{citation}}*{{/if}}\n\n{{text}}"
+
+# Annotate screenshot before saving (requires flameshot)
+obsidian-clipper -s --annotate
 ```
 
 ## Global Shortcuts (GNOME)
@@ -70,142 +119,70 @@ chmod +x ~/.local/bin/obsidian-clipper
 | Capture Text + Citation | `Ctrl+Alt+C` | `obsidian-clipper` |
 | Screenshot + OCR + Citation | `Ctrl+Alt+S` | `obsidian-clipper -s` |
 
-### Setting shortcuts via CLI:
 ```bash
-# Register screenshot shortcut (Flameshot → OCR → Citation → Note)
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/ name 'Obsidian Clipper Screenshot'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/ command '/home/em/.local/bin/uv run --directory /home/em/code/wip/Obsidian-Clipper obsidian-clipper -s'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/ binding '<Primary><Alt>s'
-
-# Register text capture shortcut (Selection → Citation → Note)
+# Register text capture shortcut
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3/ name 'Obsidian Clipper Text'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3/ command '/home/em/.local/bin/uv run --directory /home/em/code/wip/Obsidian-Clipper obsidian-clipper'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3/ command 'obsidian-clipper'
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3/ binding '<Primary><Alt>c'
-```
 
-## Usage
-
-```bash
-# Capture selected text with citation (default)
-obsidian-clipper
-
-# Screenshot → OCR → Citation → Note
-# (No text selection needed for screenshots go directly to Obsidian)
-obsidian-clipper -s
-
-# Capture without citation
-obsidian-clipper --no-cite
-
-# Save to a specific note
-obsidian-clipper -n "Research/Machine Learning.md"
-
-# Use German OCR language
-obsidian-clipper -s --ocr-lang deu
-
-# Skip OCR processing
-obsidian-clipper -s --no-ocr
-
-# Show help
-obsidian-clipper --help
+# Register screenshot shortcut
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/ name 'Obsidian Clipper Screenshot'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/ command 'obsidian-clipper -s'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/ binding '<Primary><Alt>s'
 ```
 
 ## Configuration
 
-Configuration is managed via environment variables. Create a `.env` file in your working directory or set environment variables directly:
+Set via environment variables or `.env` file. See the [full manual](docs/manual.md) for details.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OBSIDIAN_API_KEY` | Obsidian Local REST API key (required) | - |
-| `OBSIDIAN_BASE_URL` | API base URL | `https://127.0.0.1:27124` |
-| `OBSIDIAN_DEFAULT_NOTE` | Default note for captures | `00-Inbox/Quick Captures.md` |
-| `OBSIDIAN_ATTACHMENT_DIR` | Directory for attachments | `Attachments/` |
-| `OBSIDIAN_VERIFY_SSL` | Verify SSL certificates | `false` |
-| `OBSIDIAN_TIMEOUT` | API timeout in seconds | `10` |
-| `OBSIDIAN_OCR_LANGUAGE` | Default OCR language | `eng` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OBSIDIAN_API_KEY` | — | API key (required) |
+| `OBSIDIAN_BASE_URL` | `https://127.0.0.1:27124` | API base URL |
+| `OBSIDIAN_DEFAULT_NOTE` | `00-Inbox/Quick Captures.md` | Default target note |
+| `OBSIDIAN_ATTACHMENT_DIR` | `Attachments/` | Directory for uploaded images |
+| `OBSIDIAN_VERIFY_SSL` | `true` | Verify SSL certificates |
+| `OBSIDIAN_TIMEOUT` | `10` | API request timeout (seconds) |
+| `OBSIDIAN_OCR_LANGUAGE` | `eng` | Tesseract OCR language |
 
-## Vault Structure
+Config files are loaded from (in order): `.env` in current directory, then `~/.config/obsidian-clipper/.env`.
 
-The tool expects/creates:
-- `00-Inbox/Quick Captures.md` (Inbox)
-- `Attachments/` (Screenshots)
+## Built-in Profiles
 
-## Development
-
-### Setup Development Environment
-
-```bash
-# Clone and install with dev dependencies
-uv sync --all-extras
-
-# Install pre-commit hooks
-uv run pre-commit install
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=obsidian_clipper --cov-report=html
-```
-
-### Code Quality
-
-```bash
-# Format code
-uv run black obsidian_clipper tests
-uv run isort obsidian_clipper tests
-
-# Lint
-uv run ruff check obsidian_clipper tests
-
-# Type check
-uv run mypy obsidian_clipper
-```
-
-### Run All Checks
-
-```bash
-uv run black . && uv run isort . && uv run ruff check . && uv run mypy obsidian_clipper && uv run pytest
-```
+| Profile | Tags | Target | OCR | Append |
+|---------|------|--------|-----|--------|
+| `research` | research, reading | `00-Inbox/Research Note.md` | yes | yes |
+| `quick` | quick-capture | `00-Inbox/` | no | no |
+| `code` | code, snippet | `Code Snippets/` | no | no |
+| `web` | web, article | `Web Clippings/` | yes | no |
 
 ## Project Structure
 
 ```
 obsidian_clipper/
-├── __init__.py          # Package exports
-├── __main__.py          # Module entry point
-├── clipper.py           # CLI application
-├── config.py            # Configuration management
-├── exceptions.py        # Custom exceptions
+├── __init__.py            # Package exports
+├── _version.py            # Version (1.0.1)
+├── config.py              # Configuration, profiles, vaults
+├── exceptions.py          # Custom exceptions
 ├── capture/
-│   ├── __init__.py
-│   ├── text.py          # Text capture utilities
-│   ├── screenshot.py    # Screenshot and OCR
-│   └── citation.py      # Citation parsing
+│   ├── citation.py        # Citation parsing (PDF, EPUB, browser)
+│   ├── screenshot.py      # Screenshot capture and OCR
+│   └── text.py            # Text selection and window title
+├── cli/
+│   ├── args.py            # CLI argument parsing
+│   ├── main.py            # Main entry point
+│   └── tui.py             # Configuration TUI
 ├── obsidian/
-│   ├── __init__.py
-│   └── api.py           # Obsidian REST API client
+│   └── api.py             # Obsidian REST API client
+├── workflow/
+│   ├── capture.py         # Capture session preparation
+│   └── session.py         # Session data, markdown rendering
 └── utils/
-    ├── __init__.py
-    ├── command.py       # Safe command execution
-    └── notification.py  # Desktop notifications
-tests/
-├── test_capture.py
-├── test_api.py
-├── test_config.py
-├── test_utils.py
-└── test_clipper.py
+    ├── command.py          # Safe subprocess execution
+    ├── logging.py          # Colored console + file logging
+    ├── notification.py     # Desktop notifications
+    └── retry.py            # Retry with backoff
 ```
-
-## Security
-
-- **API keys** are loaded from environment variables, not hardcoded
-- **Path validation** prevents directory traversal attacks
-- **No shell injection** - commands use argument lists, not shell strings
-- **SSL verification** can be enabled for production use
 
 ## License
 
