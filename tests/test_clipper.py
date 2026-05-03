@@ -51,7 +51,7 @@ class TestCaptureSession:
 
         md = session.to_markdown()
 
-        assert "2024-01-15 10:30:00" in md
+        assert "2024-01-15" in md
         assert "> Selected text" in md
 
     def test_to_markdown_with_citation(self):
@@ -70,7 +70,7 @@ class TestCaptureSession:
 
         assert "> Quote" in md
         assert "Book.pdf" in md
-        assert "p. 42" in md
+        assert "p.42" in md
         assert "Evince" in md
 
     def test_to_markdown_with_screenshot(self):

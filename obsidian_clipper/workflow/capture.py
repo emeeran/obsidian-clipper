@@ -189,7 +189,9 @@ def process_and_save_content(
         # target_dir is the note path to append to
         logger.debug("Appending to note: %s", target_dir)
         # Ensure the note exists first
-        client.ensure_note_exists(target_dir)
+        if not client.ensure_note_exists(target_dir):
+            logger.error("Failed to ensure note exists: %s", target_dir)
+            return False
         return client.append_to_note(target_dir, "\n" + content)
     else:
         # Generate unique note path and create new note

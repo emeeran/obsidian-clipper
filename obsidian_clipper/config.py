@@ -86,7 +86,9 @@ class Config:
         self.default_note = os.getenv("OBSIDIAN_DEFAULT_NOTE", self.default_note)
         self.attachment_dir = os.getenv("OBSIDIAN_ATTACHMENT_DIR", self.attachment_dir)
         self.verify_ssl = (
-            os.getenv("OBSIDIAN_VERIFY_SSL", str(self.verify_ssl)).lower() == "true"
+            os.getenv("OBSIDIAN_VERIFY_SSL").lower() == "true"
+            if os.getenv("OBSIDIAN_VERIFY_SSL") is not None
+            else self.verify_ssl
         )
         try:
             self.timeout = int(os.getenv("OBSIDIAN_TIMEOUT", str(self.timeout)))
@@ -280,31 +282,28 @@ def get_vault_config(vault_name: str) -> Config:
     """
     prefix = f"OBSIDIAN_{vault_name.upper()}_"
 
-    # Temporarily set vault-specific env vars as the standard ones
-    # so Config.load() picks them up, preserving any user-set defaults.
-    env_backup: dict[str, str | None] = {}
-    env_mappings = {
-        "API_KEY": "OBSIDIAN_API_KEY",
-        "BASE_URL": "OBSIDIAN_BASE_URL",
-        "DEFAULT_NOTE": "OBSIDIAN_DEFAULT_NOTE",
-        "ATTACHMENT_DIR": "OBSIDIAN_ATTACHMENT_DIR",
-        "VERIFY_SSL": "OBSIDIAN_VERIFY_SSL",
-        "TIMEOUT": "OBSIDIAN_TIMEOUT",
-        "OCR_LANGUAGE": "OBSIDIAN_OCR_LANGUAGE",
-    }
+    def _env(suffix: str, fallback: str) -> str:
+        return os.environ.get(f"{prefix}{suffix}", os.environ.get(f"OBSIDIAN_{suffix}", fallback))
 
-    for suffix, standard_key in env_mappings.items():
-        vault_key = f"{prefix}{suffix}"
-        if vault_key in os.environ:
-            env_backup[standard_key] = os.environ.get(standard_key)
-            os.environ[standard_key] = os.environ[vault_key]
+    config = Config.__new__(Config)
+    config._loaded = False
+    config._headers = {}
+    config.api_key = _env("API_KEY", "")
+    config.base_url = _env("BASE_URL", "https://127.0.0.1:27124")
+    config.default_note = _env("DEFAULT_NOTE", "00-Inbox/Quick Captures.md")
+    config.attachment_dir = _env("ATTACHMENT_DIR", "Attachments/")
 
+    verify_val = os.environ.get(f"{prefix}VERIFY_SSL", os.environ.get("OBSIDIAN_VERIFY_SSL"))
+    config.verify_ssl = verify_val.lower() == "true" if verify_val is not None else True
+
+    timeout_val = os.environ.get(f"{prefix}TIMEOUT", os.environ.get("OBSIDIAN_TIMEOUT", "10"))
     try:
-        return Config()
-    finally:
-        # Restore original env vars
-        for standard_key, original_value in env_backup.items():
-            if original_value is None:
-                os.environ.pop(standard_key, None)
-            else:
-                os.environ[standard_key] = original_value
+        config.timeout = int(timeout_val)
+    except (ValueError, TypeError):
+        config.timeout = 10
+
+    ocr_val = os.environ.get(f"{prefix}OCR_LANGUAGE", os.environ.get("OBSIDIAN_OCR_LANGUAGE", "eng"))
+    config.ocr_language = Config._normalize_ocr_language(ocr_val)
+
+    config._loaded = True
+    return config

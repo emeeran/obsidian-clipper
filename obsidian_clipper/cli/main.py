@@ -75,7 +75,7 @@ def _pick_note_with_fzf(client: ObsidianClient) -> str | None:
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
-        except (FileNotFoundError, Exception):
+        except Exception:
             continue
 
     return None
@@ -208,18 +208,6 @@ def main() -> int:
         # Use args.note as target directory, or default_note from config
         target_dir = args.note or config.default_note
 
-        # Interactive note picker overrides target_dir
-        if args.pick:
-            with ObsidianClient(config) as pick_client:
-                picked = _pick_note_with_fzf(pick_client)
-            if picked is None:
-                notify_error("Obsidian Capture", "Note picker cancelled or unavailable.")
-                return 1
-            target_dir = picked
-        # If target_dir ends with .md, extract the directory part (unless appending)
-        if not args.append and target_dir.endswith(".md"):
-            target_dir = str(Path(target_dir).parent)
-
         with ObsidianClient(config) as client:
             if not client.check_connection():
                 notify_error(
@@ -232,6 +220,18 @@ def main() -> int:
                     f"  4. Test manually: curl -H 'Authorization: Bearer ...' {config.base_url}/",
                 )
                 return 1
+
+            # Interactive note picker overrides target_dir
+            if args.pick:
+                picked = _pick_note_with_fzf(client)
+                if picked is None:
+                    notify_error("Obsidian Capture", "Note picker cancelled or unavailable.")
+                    return 1
+                target_dir = picked
+
+            # If target_dir ends with .md, extract the directory part (unless appending)
+            if not args.append and target_dir.endswith(".md"):
+                target_dir = str(Path(target_dir).parent)
 
             session = prepare_capture_session(args)
 

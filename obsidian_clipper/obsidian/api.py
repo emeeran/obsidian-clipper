@@ -83,6 +83,7 @@ class ObsidianClient:
         """
         self.config = config or get_config()
         self._session: requests.Session | None = None
+        self._known_notes: set[str] = set()
         self.circuit_breaker = CircuitBreaker(
             failure_threshold=5,
             recovery_timeout=60.0,
@@ -227,25 +228,41 @@ class ObsidianClient:
         except (APIConnectionError, APIRequestError):
             return False
 
+    @staticmethod
+    def _default_initial_content(note_path: str) -> str:
+        """Derive initial content from note filename."""
+        stem = Path(note_path).stem  # "Research Note" from "00-Inbox/Research Note.md"
+        return f"# {stem}\n"
+
     def ensure_note_exists(
         self,
         note_path: str,
-        initial_content: str = "# Quick Captures\n",
+        initial_content: str | None = None,
     ) -> bool:
         """Create target note if missing.
 
+        Caches known-existing notes to avoid redundant GET requests.
+
         Args:
             note_path: Path to note (relative to vault root).
-            initial_content: Content for new note.
+            initial_content: Content for new note. Defaults to "# <filename>\n".
 
         Returns:
             True if note exists or was created successfully.
         """
         safe_path = validate_path(note_path)
 
+        if initial_content is None:
+            initial_content = self._default_initial_content(note_path)
+
+        # Skip check if we already confirmed this note exists
+        if safe_path in self._known_notes:
+            return True
+
         try:
             response = self._request("GET", safe_path)
             if response.status_code == 200:
+                self._known_notes.add(safe_path)
                 return True
 
             if response.status_code == 404:
@@ -255,7 +272,10 @@ class ObsidianClient:
                     headers={**self.config.headers, "Content-Type": "text/markdown"},
                     data=initial_content.encode("utf-8"),
                 )
-                return create_response.status_code in (200, 201, 204)
+                if create_response.status_code in (200, 201, 204):
+                    self._known_notes.add(safe_path)
+                    return True
+                return False
 
             return False
         except (APIConnectionError, APIRequestError) as e:
@@ -272,12 +292,10 @@ class ObsidianClient:
         Returns:
             True if successful.
         """
-        safe_path = validate_path(note_path)
-
         try:
             response = self._request(
                 "PUT",
-                safe_path,
+                note_path,
                 headers={**self.config.headers, "Content-Type": "text/markdown"},
                 data=content.encode("utf-8"),
             )
@@ -296,12 +314,10 @@ class ObsidianClient:
         Returns:
             True if successful.
         """
-        safe_path = validate_path(note_path)
-
         try:
             response = self._request(
                 "POST",
-                safe_path,
+                note_path,
                 headers={**self.config.headers, "Content-Type": "text/markdown"},
                 data=content.encode("utf-8"),
             )

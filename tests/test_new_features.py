@@ -19,8 +19,9 @@ class TestProfiles:
     def test_get_builtin_profile(self):
         profile = get_profile("research")
         assert profile["tags"] == "research,reading"
-        assert profile["note"] == "Research/"
+        assert profile["note"] == "00-Inbox/Research Note.md"
         assert profile["ocr"] is True
+        assert profile["append"] is True
 
     def test_get_quick_profile(self):
         profile = get_profile("quick")
@@ -248,37 +249,40 @@ class TestSessionRefactor:
         session = CaptureSession()
         assert session._render_frontmatter([]) == ""
 
-    def test_render_blockquote_text(self):
+    def test_render_text_callout(self):
         session = CaptureSession(text="Line 1\nLine 2")
-        result = session._render_blockquote()
-        assert "> Line 1\n" in result
-        assert "> Line 2\n" in result
+        result = session._render_text_callout()
+        assert "> [!quote]" in result
+        assert "> Line 1" in result
+        assert "> Line 2" in result
 
-    def test_render_blockquote_with_ocr(self):
+    def test_render_text_callout_with_ocr(self):
         session = CaptureSession(text="Text", ocr_text="OCR")
-        result = session._render_blockquote()
-        assert "> Text\n" in result
-        assert "> OCR\n" in result
+        result = session._render_text_callout()
+        assert "> Text" in result
+        assert "> OCR" in result
 
-    def test_render_citation(self):
+    def test_render_source_label(self):
         session = CaptureSession(
             citation=Citation(title="Book", source="Chrome", source_type=SourceType.BROWSER),
         )
-        result = session._render_citation()
+        result = session._render_source_label()
         assert "Book" in result
+        assert "Chrome" in result
 
-    def test_render_citation_none(self):
+    def test_render_source_label_none(self):
         session = CaptureSession()
-        assert session._render_citation() == ""
+        assert session._render_source_label() == ""
 
-    def test_render_screenshot(self):
+    def test_render_screenshot_callout(self):
         session = CaptureSession(screenshot_success=True, img_filename="img.png")
-        result = session._render_screenshot()
+        result = session._render_screenshot_callout()
         assert "![[img.png]]" in result
 
-    def test_render_screenshot_none(self):
+    def test_render_screenshot_callout_none(self):
         session = CaptureSession()
-        assert session._render_screenshot() == ""
+        result = session._render_screenshot_callout()
+        assert "[!image]" in result
 
 
 class TestConfigValidation:

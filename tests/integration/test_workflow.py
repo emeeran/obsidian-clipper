@@ -58,7 +58,7 @@ class TestWorkflowIntegration:
 
         assert "Selected text" in markdown
         assert "OCR extracted text" in markdown
-        assert "Document.pdf, p. 42" in markdown
+        assert "Document.pdf, p.42" in markdown
         assert "![[capture.png]]" in markdown
 
     def test_capture_session_long_text_preview(self):
@@ -125,7 +125,7 @@ class TestMarkdownFormatting:
         session = CaptureSession(text="Content")
         markdown = session.to_markdown()
 
-        assert "### 📌" in markdown
+        assert "### " in markdown
 
     def test_blockquote_format(self):
         """Test blockquote format for content."""
@@ -145,7 +145,7 @@ class TestMarkdownFormatting:
         )
         markdown = session.to_markdown()
 
-        assert "*Book Title*" in markdown
+        assert "Book Title" in markdown
 
     def test_citation_with_page(self):
         """Test citation with page number."""
@@ -159,7 +159,7 @@ class TestMarkdownFormatting:
         )
         markdown = session.to_markdown()
 
-        assert "*Book Title, p. 42*" in markdown
+        assert "Book Title, p.42" in markdown
 
     def test_citation_source_excluded_for_generic(self):
         """Test generic sources are excluded from citation."""

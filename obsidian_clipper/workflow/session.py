@@ -44,16 +44,13 @@ class CaptureSession:
         Returns:
             Note path like "00-Inbox/Capture.md"
         """
-        # Get preview for filename
         preview = self.get_preview(40)
-        # Sanitize for filename: remove/replace unsafe chars
         safe_preview = re.sub(r'[<>:"/\\|?*\n\r]', "", preview)
         safe_preview = re.sub(r"\s+", " ", safe_preview).strip()
 
         filename = f"{safe_preview}.md"
 
         if directory:
-            # Ensure directory ends with /
             directory = directory.rstrip("/") + "/"
             return f"{directory}{filename}"
         return filename
@@ -97,7 +94,6 @@ class CaptureSession:
         def _eval_conditional(match: re.Match) -> str:
             field = match.group(1).strip()
             body = match.group(2)
-            # Check if the field value is truthy
             value = subs.get(field, "")
             if value:
                 return body
@@ -130,7 +126,7 @@ class CaptureSession:
         title = self.citation.title or ""
         source = self.citation.source or ""
         page = self.citation.page
-        # Clean source name
+        # These are internal labels, not meaningful to the user
         if source in ("PDF Reader", "Browser", "Unknown", "Window"):
             source = ""
         parts = []
@@ -143,44 +139,41 @@ class CaptureSession:
             parts.append(source)
         return " — " + " · ".join(parts) if parts else ""
 
-    def _render_text_callout(self) -> str:
-        """Render text capture as Obsidian callout with justified body."""
-        lines = []
-        # Callout header with source attribution
+    def _render_callout(self, callout_type: str, body_lines: list[str]) -> str:
+        """Render an Obsidian callout block.
+
+        Args:
+            callout_type: Callout type (e.g., "quote", "image").
+            body_lines: Lines to render inside the callout body.
+        """
         source_label = self._render_source_label()
-        lines.append(f"> [!quote]{source_label}")
-        lines.append(">")
-        # Body text as justified block
-        if self.text:
-            for line in self.text.split("\n"):
-                lines.append(f"> {line}")
+        lines = [f"> [!{callout_type}]{source_label}", ">"]
+        for body_line in body_lines:
+            lines.append(f"> {body_line}")
+        if body_lines:
             lines.append(">")
         if self.ocr_text:
             for line in self.ocr_text.split("\n"):
                 lines.append(f"> {line}")
             lines.append(">")
         return "\n".join(lines) + "\n"
+
+    def _render_text_callout(self) -> str:
+        """Render text capture as Obsidian callout."""
+        body = self.text.split("\n") if self.text else []
+        return self._render_callout("quote", body)
 
     def _render_screenshot_callout(self) -> str:
         """Render screenshot capture as Obsidian callout."""
-        lines = []
-        source_label = self._render_source_label()
-        lines.append(f"> [!image]{source_label}")
-        lines.append(">")
+        body = []
         if self.screenshot_success and self.img_filename:
-            lines.append(f"> ![[{self.img_filename}]]")
-            lines.append(">")
-        if self.ocr_text:
-            for line in self.ocr_text.split("\n"):
-                lines.append(f"> {line}")
-            lines.append(">")
-        return "\n".join(lines) + "\n"
-
-    def _render_screenshot(self) -> str:
-        """Render screenshot embed (fallback for non-callout mode)."""
-        if self.screenshot_success and self.img_filename:
-            return f"\n![[{self.img_filename}]]\n"
-        return ""
+            body.append(f"![[{self.img_filename}]]")
+        # Include text alongside screenshot when both exist
+        if self.text:
+            if body:
+                body.append("")
+            body.extend(self.text.split("\n"))
+        return self._render_callout("image", body)
 
     def to_markdown(self, include_frontmatter: bool = True) -> str:
         """Convert captured content to markdown string.
