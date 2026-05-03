@@ -44,6 +44,8 @@ dev = [
     "ruff>=0.9.0",
     "pre-commit>=4.0.0",
     "types-requests>=2.31.0",
+    "pip-audit>=0.1.0",
+    "bandit>=1.7.0",
 ]
 
 [project.scripts]
@@ -81,16 +83,24 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 follow_imports = "silent"
-ignore_missing_imports = true
+ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = "tests.*"
+module = ["tests.*", "tests.integration.*"]
 disallow_untyped_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["PIL.*", "pytesseract", "dotenv"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = "-ra -q --cov=obsidian_clipper --cov-report=term-missing"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests requiring live Obsidian API (deselect with '-m \"not integration\"')",
+]
 
 [tool.coverage.run]
 source = ["obsidian_clipper"]

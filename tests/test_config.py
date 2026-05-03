@@ -28,17 +28,17 @@ class TestConfig:
         """Test headers are generated correctly."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-api-key"
+        config.api_key = "testapikey1234567890abcdef"
         config._headers = {}
 
         headers = config.headers
-        assert headers["Authorization"] == "Bearer test-api-key"
+        assert headers["Authorization"] == "Bearer testapikey1234567890abcdef"
 
     def test_headers_cached(self):
         """Test headers are cached."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-api-key-12345"
+        config.api_key = "abcdef1234567890abcdef1234567890"
         config._headers = {}
 
         headers1 = config.headers
@@ -62,7 +62,7 @@ class TestConfig:
         """Test validation fails without base URL."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-api-key-12345"
+        config.api_key = "abcdef1234567890abcdef1234567890"
         config.base_url = ""
         config.default_note = "Notes.md"
         config.timeout = 10
@@ -76,7 +76,7 @@ class TestConfig:
         """Test validation fails with invalid timeout."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-api-key-12345"
+        config.api_key = "abcdef1234567890abcdef1234567890"
         config.base_url = "https://127.0.0.1:27124"
         config.default_note = "Notes.md"
         config.timeout = 0
@@ -89,7 +89,7 @@ class TestConfig:
         """Test validation passes with valid config."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-api-key-12345"
+        config.api_key = "abcdef1234567890abcdef1234567890"
         config.base_url = "https://127.0.0.1:27124"
         config.default_note = "Notes.md"
         config.timeout = 10
@@ -113,7 +113,7 @@ class TestConfig:
         os.environ,
         {
             "OBSIDIAN_API_KEY": "key",
-            "OBSIDIAN_BASE_URL": "https://example.com",
+            "OBSIDIAN_BASE_URL": "http://127.0.0.1:27124",
             "OBSIDIAN_DEFAULT_NOTE": "Custom/Note.md",
             "OBSIDIAN_VERIFY_SSL": "true",
             "OBSIDIAN_TIMEOUT": "30",
@@ -126,7 +126,7 @@ class TestConfig:
         config.load()
 
         assert config.api_key == "key"
-        assert config.base_url == "https://example.com"
+        assert config.base_url == "http://127.0.0.1:27124"
         assert config.default_note == "Custom/Note.md"
         assert config.verify_ssl is True
         assert config.timeout == 30
@@ -183,7 +183,7 @@ class TestGlobalConfig:
         config_module._config = None
 
         custom_config = Config.__new__(Config)
-        custom_config.api_key = "custom"
+        custom_config.api_key = "aabbccdd11223344"
         custom_config._loaded = False
 
         set_config(custom_config)

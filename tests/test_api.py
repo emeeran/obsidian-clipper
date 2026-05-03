@@ -81,6 +81,27 @@ class TestValidatePath:
         with pytest.raises(PathSecurityError):
             validate_path("..")
 
+    def test_validate_path_url_encoded_traversal(self):
+        """Test URL-encoded path traversal (%2e%2e) is blocked."""
+        with pytest.raises(PathSecurityError):
+            validate_path("%2e%2e/secrets.txt")
+
+    def test_validate_path_url_encoded_traversal_uppercase(self):
+        """Test uppercase URL-encoded traversal (%2E%2E) is blocked."""
+        with pytest.raises(PathSecurityError):
+            validate_path("%2E%2E/secrets.txt")
+
+    def test_validate_path_double_encoded_not_traversal(self):
+        """Double-encoded paths are safe — server decodes only once."""
+        # %252e%252e → unquote → %2e%2e (not ..) → safe
+        result = validate_path("%252e%252e/safe.txt")
+        assert "safe.txt" in result
+
+    def test_validate_path_url_encoded_in_middle(self):
+        """Test URL-encoded traversal in middle of path is blocked."""
+        with pytest.raises(PathSecurityError):
+            validate_path("notes/%2e%2e/secrets.txt")
+
 
 class TestObsidianClient:
     """Tests for ObsidianClient class."""
@@ -110,6 +131,11 @@ class TestObsidianClient:
         url = client._build_url("Notes/Test.md")
         assert "127.0.0.1:27124" in url
         assert "/vault/Notes/Test.md" in url
+
+    def test_build_url_encodes_special_chars(self, client):
+        """Test URL building encodes special characters."""
+        url = client._build_url("Notes/My Note.md")
+        assert "/vault/Notes/My%20Note.md" in url
 
     @patch("obsidian_clipper.obsidian.api.requests.Session")
     def test_check_connection_success(self, mock_session, client):

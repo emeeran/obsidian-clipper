@@ -1,8 +1,12 @@
 services:
   clipper:
     build: .
-    volumes:
-      - .env:/app/.env
-    environment:
-      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY}
-      - OBSIDIAN_BASE_URL=${OBSIDIAN_BASE_URL}
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      test: ["CMD", "obsidian-clipper", "--help"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

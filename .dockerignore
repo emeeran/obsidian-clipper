@@ -1,6 +1,7 @@
 # Git
 .git
 .gitignore
+.github/
 
 # Python
 __pycache__
@@ -43,6 +44,7 @@ env/
 htmlcov/
 .tox/
 .nox/
+tests/
 
 # Type checking
 .mypy_cache/

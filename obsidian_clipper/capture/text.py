@@ -99,7 +99,7 @@ def get_active_window_title() -> str:
             timeout=5,
         )
         data = json.loads(result.stdout)
-        title = data.get("title", "").strip()
+        title = str(data.get("title", "")).strip()
         if title:
             return title
     except FileNotFoundError:
@@ -125,7 +125,7 @@ def get_active_window_title() -> str:
 
         def _find_focused(node: dict) -> str:
             if node.get("focused"):
-                return node.get("name", "")
+                return str(node.get("name", ""))
             for child in node.get("nodes", []):
                 title = _find_focused(child)
                 if title:

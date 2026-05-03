@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,13 +43,17 @@ class CaptureSession:
             directory: Target directory (e.g., "00-Inbox/").
 
         Returns:
-            Note path like "00-Inbox/Capture.md"
+            Note path like "00-Inbox/Capture_abc123.md"
         """
         preview = self.get_preview(40)
         safe_preview = re.sub(r'[<>:"/\\|?*\n\r]', "", preview)
         safe_preview = re.sub(r"\s+", " ", safe_preview).strip()
 
-        filename = f"{safe_preview}.md"
+        # Add short hash to prevent collisions
+        content_hash = hashlib.md5(
+            (self.text or self.ocr_text or self.timestamp).encode()
+        ).hexdigest()[:6]
+        filename = f"{safe_preview}_{content_hash}.md"
 
         if directory:
             directory = directory.rstrip("/") + "/"
@@ -91,7 +96,7 @@ class CaptureSession:
         }
 
         # Process conditionals: {{#if field}}...{{/if}}
-        def _eval_conditional(match: re.Match) -> str:
+        def _eval_conditional(match: re.Match[str]) -> str:
             field = match.group(1).strip()
             body = match.group(2)
             value = subs.get(field, "")

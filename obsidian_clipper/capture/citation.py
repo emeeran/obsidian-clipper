@@ -406,7 +406,7 @@ def parse_generic_citation(window_title: str) -> Citation | None:
 
 # Parser registry: ordered list of citation parsers
 # Use @citation_parser to register additional parsers from external code.
-CITATION_PARSERS: list[CitationParserFunc] = [  # type: ignore[type-arg]
+CITATION_PARSERS: list[CitationParserFunc] = [
     parse_pdf_citation,
     parse_epub_citation,
     parse_browser_citation,

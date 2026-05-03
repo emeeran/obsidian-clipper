@@ -102,6 +102,8 @@ Environment variables:
         "--image-quality",
         type=int,
         default=85,
+        choices=range(1, 101),
+        metavar="{1-100}",
         help="Image quality for compression (1-100, default: 85)",
     )
     parser.add_argument(

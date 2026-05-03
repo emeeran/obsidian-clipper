@@ -64,31 +64,48 @@ class Config:
                       1. Current directory
                       2. ~/.config/obsidian-clipper/.env
         """
+        import stat
+
         # Define standard config paths
         config_dir = Path.home() / ".config" / "obsidian-clipper"
         standard_env = config_dir / ".env"
+
+        # Determine env file path to check permissions
+        env_path = Path(env_file) if env_file else None
 
         # Load .env file if available
         if HAS_DOTENV:
             # 1. Try provided path
             if env_file:
                 load_dotenv(env_file)
+                env_path = Path(env_file)
             else:
                 # 2. Try current directory
                 load_dotenv()
                 # 3. Try standard config path if current dir didn't have it
                 if standard_env.exists():
                     load_dotenv(standard_env, override=False)
+                    if env_path is None:
+                        env_path = standard_env
+
+        # Warn about insecure file permissions
+        if env_path and env_path.exists():
+            mode = env_path.stat().st_mode
+            if mode & (stat.S_IRGRP | stat.S_IROTH):
+                logger.warning(
+                    "Permissions on %s are too open (group/other readable). Run: chmod 600 %s",
+                    env_path,
+                    env_path,
+                )
 
         # Override with environment variables
         self.api_key = os.getenv("OBSIDIAN_API_KEY", self.api_key)
         self.base_url = os.getenv("OBSIDIAN_BASE_URL", self.base_url)
         self.default_note = os.getenv("OBSIDIAN_DEFAULT_NOTE", self.default_note)
         self.attachment_dir = os.getenv("OBSIDIAN_ATTACHMENT_DIR", self.attachment_dir)
+        _verify_val = os.getenv("OBSIDIAN_VERIFY_SSL")
         self.verify_ssl = (
-            os.getenv("OBSIDIAN_VERIFY_SSL").lower() == "true"
-            if os.getenv("OBSIDIAN_VERIFY_SSL") is not None
-            else self.verify_ssl
+            _verify_val.lower() == "true" if _verify_val is not None else self.verify_ssl
         )
         try:
             self.timeout = int(os.getenv("OBSIDIAN_TIMEOUT", str(self.timeout)))
@@ -142,6 +159,10 @@ class Config:
             errors.append(
                 "API key appears too short. Check your Obsidian Local REST API settings."
             )
+        elif not re.fullmatch(r"[0-9a-fA-F]+", self.api_key):
+            errors.append(
+                "API key should be a hex string. Check Obsidian Local REST API settings."
+            )
 
         if not self.base_url:
             errors.append(
@@ -152,6 +173,23 @@ class Config:
                 f"Base URL must start with http:// or https:// (got: {self.base_url}). "
                 "Typical value: http://127.0.0.1:27124"
             )
+        else:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(self.base_url)
+            hostname = parsed.hostname or ""
+            is_local = hostname in ("127.0.0.1", "localhost", "::1", "0.0.0.0")
+            if not is_local and not hostname.startswith(("192.168.", "10.")):
+                is_private = False
+                if hostname.startswith("172."):
+                    parts = hostname.split(".")
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        is_private = 16 <= int(parts[1]) <= 31
+                if not is_private:
+                    errors.append(
+                        f"Base URL should point to localhost or private network (got: {hostname}). "
+                        "Obsidian Local REST API is designed for local use."
+                    )
 
         if not self.default_note:
             errors.append("Default note path is required.")
@@ -170,6 +208,46 @@ class Config:
     def is_valid(self) -> bool:
         """Check if configuration is valid."""
         return len(self.validate()) == 0
+
+    @classmethod
+    def from_env_prefix(cls, prefix: str) -> Config:
+        """Create Config from vault-specific env vars.
+
+        Reads <PREFIX>API_KEY, <PREFIX>BASE_URL, etc.
+        Falls back to default OBSIDIAN_* vars for any unset fields.
+
+        Args:
+            prefix: Env var prefix (e.g., 'OBSIDIAN_WORK_').
+
+        Returns:
+            Config instance with prefixed values.
+        """
+        def _env(suffix: str, fallback: str) -> str:
+            return os.environ.get(f"{prefix}{suffix}", os.environ.get(f"OBSIDIAN_{suffix}", fallback))
+
+        config = cls(
+            api_key=_env("API_KEY", ""),
+            base_url=_env("BASE_URL", "https://127.0.0.1:27124"),
+            default_note=_env("DEFAULT_NOTE", "00-Inbox/Quick Captures.md"),
+            attachment_dir=_env("ATTACHMENT_DIR", "Attachments/"),
+            _loaded=True,  # Skip load() — we're setting values directly
+        )
+        # Override verify_ssl from env
+        verify_val = os.environ.get(f"{prefix}VERIFY_SSL", os.environ.get("OBSIDIAN_VERIFY_SSL"))
+        config.verify_ssl = verify_val.lower() == "true" if verify_val is not None else True
+
+        # Override timeout from env
+        timeout_val = os.environ.get(f"{prefix}TIMEOUT", os.environ.get("OBSIDIAN_TIMEOUT", "10"))
+        try:
+            config.timeout = int(timeout_val)
+        except (ValueError, TypeError):
+            config.timeout = 10
+
+        # Override OCR language from env
+        ocr_val = os.environ.get(f"{prefix}OCR_LANGUAGE", os.environ.get("OBSIDIAN_OCR_LANGUAGE", "eng"))
+        config.ocr_language = cls._normalize_ocr_language(ocr_val)
+
+        return config
 
 
 # Global config instance with thread-safe access
@@ -280,30 +358,4 @@ def get_vault_config(vault_name: str) -> Config:
     Returns:
         Config instance with vault-specific values.
     """
-    prefix = f"OBSIDIAN_{vault_name.upper()}_"
-
-    def _env(suffix: str, fallback: str) -> str:
-        return os.environ.get(f"{prefix}{suffix}", os.environ.get(f"OBSIDIAN_{suffix}", fallback))
-
-    config = Config.__new__(Config)
-    config._loaded = False
-    config._headers = {}
-    config.api_key = _env("API_KEY", "")
-    config.base_url = _env("BASE_URL", "https://127.0.0.1:27124")
-    config.default_note = _env("DEFAULT_NOTE", "00-Inbox/Quick Captures.md")
-    config.attachment_dir = _env("ATTACHMENT_DIR", "Attachments/")
-
-    verify_val = os.environ.get(f"{prefix}VERIFY_SSL", os.environ.get("OBSIDIAN_VERIFY_SSL"))
-    config.verify_ssl = verify_val.lower() == "true" if verify_val is not None else True
-
-    timeout_val = os.environ.get(f"{prefix}TIMEOUT", os.environ.get("OBSIDIAN_TIMEOUT", "10"))
-    try:
-        config.timeout = int(timeout_val)
-    except (ValueError, TypeError):
-        config.timeout = 10
-
-    ocr_val = os.environ.get(f"{prefix}OCR_LANGUAGE", os.environ.get("OBSIDIAN_OCR_LANGUAGE", "eng"))
-    config.ocr_language = Config._normalize_ocr_language(ocr_val)
-
-    config._loaded = True
-    return config
+    return Config.from_env_prefix(f"OBSIDIAN_{vault_name.upper()}_")

@@ -181,7 +181,7 @@ class HumanFormatter(logging.Formatter):
         return term != "dumb"
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format log record with optional colors.
+        """Format log record with optional colors and sensitive data redaction.
 
         Args:
             record: Log record to format.
@@ -189,6 +189,21 @@ class HumanFormatter(logging.Formatter):
         Returns:
             Formatted log string.
         """
+        # Redact sensitive data from message
+        msg = record.getMessage()
+        for key in ("api_key", "authorization", "token", "password"):
+            if key in msg.lower():
+                # Simple pattern: redact common secret patterns
+                import re
+                msg = re.sub(
+                    rf'({key}["\s:=]+)(\S+)',
+                    r'\1***REDACTED***',
+                    msg,
+                    flags=re.IGNORECASE,
+                )
+                record.msg = msg
+                record.args = None
+
         if self.use_colors:
             color = self.COLORS.get(record.levelname, "")
             colored_level = f"{color}{record.levelname:<8}{self.RESET}"
@@ -298,7 +313,7 @@ class LogContext:
         """Get thread-local context dict."""
         if not hasattr(cls._local, "context"):
             cls._local.context = {}
-        return cls._local.context
+        return cls._local.context  # type: ignore[no-any-return]
 
     def __enter__(self) -> LogContext:
         """Enter context, adding new fields."""

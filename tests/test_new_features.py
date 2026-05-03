@@ -302,7 +302,7 @@ class TestConfigValidation:
     def test_invalid_base_url_scheme(self):
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "valid-api-key-12345"
+        config.api_key = "abcdef1234567890abcdef1234567890"
         config.base_url = "ftp://example.com"
         config.default_note = "Notes.md"
         config.timeout = 10
@@ -313,7 +313,7 @@ class TestConfigValidation:
     def test_valid_config_no_errors(self):
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "valid-api-key-12345"
+        config.api_key = "abcdef1234567890abcdef1234567890"
         config.base_url = "https://127.0.0.1:27124"
         config.default_note = "Notes.md"
         config.timeout = 10

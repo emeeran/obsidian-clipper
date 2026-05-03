@@ -24,7 +24,7 @@ def run_command_safely(
     check: bool = False,
     input_text: str | None = None,
     text: bool = True,
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     """Run a command safely without shell injection risk.
 
     Args:

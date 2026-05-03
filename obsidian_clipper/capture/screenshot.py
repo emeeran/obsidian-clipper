@@ -285,14 +285,14 @@ def _preprocess_for_ocr(img_path: Path) -> Path:
         with Image.open(img_path) as img:
             # Convert to grayscale for cleaner OCR
             if img.mode != "L":
-                img = img.convert("L")
+                img = img.convert("L")  # type: ignore[assignment]
 
             # Increase contrast
             enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(1.5)
+            img = enhancer.enhance(1.5)  # type: ignore[assignment]
 
             # Slight sharpening
-            img = img.filter(ImageFilter.SHARPEN)
+            img = img.filter(ImageFilter.SHARPEN)  # type: ignore[assignment]
 
             # Save to temp file
             out_path = img_path.with_suffix(".ocr.png")
@@ -325,7 +325,7 @@ def ocr_image(
     img_path = Path(img_path)
 
     if not img_path.exists():
-        logger.warning(f"Image file not found: {img_path}")
+        logger.warning("Image file not found: %s", img_path)
         return ""
 
     config = get_config()
@@ -357,7 +357,7 @@ def ocr_image(
         # Clean up preprocessed file
         if ocr_path != img_path and ocr_path.exists():
             ocr_path.unlink(missing_ok=True)
-        logger.error(f"OCR failed: {e}")
+        logger.error("OCR failed: %s", e)
         raise OCRError(f"OCR processing failed: {e}") from e
 
 

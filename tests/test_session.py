@@ -53,9 +53,9 @@ class TestGetNoteFilename:
         session = CaptureSession(text="A" * 100)
         result = session.get_note_filename()
         filename = result.rsplit("/", 1)[-1] if "/" in result else result
-        # Filename (without .md) should be truncated via get_preview(40)
+        # Filename includes preview (truncated to 40 + "...") + hash suffix
         name_part = filename.replace(".md", "")
-        assert len(name_part) <= 43  # 40 + "..."
+        assert len(name_part) <= 50  # 40 + "..." + "_abcdef" (6-char hash)
 
     def test_ocr_text_used_when_no_text(self):
         session = CaptureSession(ocr_text="OCR result")

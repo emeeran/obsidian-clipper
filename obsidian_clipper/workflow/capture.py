@@ -63,13 +63,13 @@ def _optimize_screenshot(
             if img_format.lower() in ("jpeg", "jpg", "webp"):
                 save_kwargs["quality"] = quality
                 if img.mode == "RGBA":
-                    img = img.convert("RGB")
+                    img = img.convert("RGB")  # type: ignore[assignment]
             img.save(out_path, format=img_format, **save_kwargs)
             if out_path != image_path:
                 image_path.unlink()
             return out_path
     except Exception as e:
-        logger.warning(f"Image optimization failed: {e}")
+        logger.warning("Image optimization failed: %s", e)
         return image_path
 
 
@@ -120,7 +120,7 @@ def _capture_screenshot_session(
             session.citation = _get_fallback_citation(pre_capture_window_title)
 
     except ScreenshotError as e:
-        logger.warning(f"Screenshot capture failed: {e}")
+        logger.warning("Screenshot capture failed: %s", e)
 
 
 def prepare_capture_session(args: argparse.Namespace) -> CaptureSession:

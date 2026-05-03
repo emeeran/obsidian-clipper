@@ -7,14 +7,12 @@ import re
 import warnings
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3.util.retry import Retry
-
-# Suppress SSL warnings when verify_ssl=False (user explicitly opted in)
-warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 
 from ..config import Config, get_config
 from ..exceptions import (
@@ -42,6 +40,9 @@ def validate_path(path: str) -> str:
     Raises:
         PathSecurityError: If path contains traversal attempts.
     """
+    # URL-decode before validation to prevent encoded traversal (%2e%2e → ..)
+    path = unquote(path)
+
     # Normalize path separators
     path = path.replace("\\", "/")
 
@@ -125,7 +126,8 @@ class ObsidianClient:
             Full URL string.
         """
         safe_path = validate_path(path)
-        return f"{self.config.base_url}/vault/{safe_path}"
+        encoded = quote(safe_path, safe="/:")
+        return f"{self.config.base_url}/vault/{encoded}"
 
     def _execute_request(
         self,
@@ -158,7 +160,13 @@ class ObsidianClient:
 
         try:
             session = self._get_session()
-            response = session.request(method, url, **kwargs)
+            # Suppress InsecureRequestWarning only when verify_ssl=False
+            if not kwargs.get("verify", True):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", InsecureRequestWarning)
+                    response = session.request(method, url, **kwargs)
+            else:
+                response = session.request(method, url, **kwargs)
 
             # Record success if response is not a server error
             if response.status_code < 500:
@@ -279,7 +287,7 @@ class ObsidianClient:
 
             return False
         except (APIConnectionError, APIRequestError) as e:
-            logger.error(f"Failed to ensure note exists: {e}")
+            logger.error("Failed to ensure note exists: %s", e)
             return False
 
     def create_note(self, note_path: str, content: str) -> bool:
@@ -301,7 +309,7 @@ class ObsidianClient:
             )
             return response.status_code in (200, 201, 204)
         except (APIConnectionError, APIRequestError) as e:
-            logger.error(f"Failed to create note: {e}")
+            logger.error("Failed to create note: %s", e)
             return False
 
     def append_to_note(self, note_path: str, content: str) -> bool:
@@ -323,7 +331,7 @@ class ObsidianClient:
             )
             return response.status_code in (200, 201, 204)
         except (APIConnectionError, APIRequestError) as e:
-            logger.error(f"Failed to append to note: {e}")
+            logger.error("Failed to append to note: %s", e)
             return False
 
     def upload_image(
@@ -344,7 +352,7 @@ class ObsidianClient:
         """
         img_path = Path(img_path)
         if not img_path.exists():
-            logger.error(f"Image file not found: {img_path}")
+            logger.error("Image file not found: %s", img_path)
             return False
 
         filename = dest_filename or img_path.name
@@ -374,10 +382,10 @@ class ObsidianClient:
             )
             return response.status_code in (200, 201, 204)
         except (APIConnectionError, APIRequestError) as e:
-            logger.error(f"Failed to upload image: {e}")
+            logger.error("Failed to upload image: %s", e)
             return False
         except OSError as e:
-            logger.error(f"Failed to read image file: {e}")
+            logger.error("Failed to read image file: %s", e)
             return False
 
     def close(self) -> None:

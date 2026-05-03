@@ -30,7 +30,7 @@ def validate_config() -> None:
 
     if errors:
         for error in errors:
-            logger.error(f"Configuration error: {error}")
+            logger.error("Configuration error: %s", error)
         raise ConfigurationError(
             "Invalid configuration. Please set required environment variables.\n"
             "Run `obsidian-clipper --config-ui` for guided setup."
@@ -57,7 +57,7 @@ def _pick_note_with_fzf(client: ObsidianClient) -> str | None:
         files = response.json().get("files", [])
         md_files = [f for f in files if f.endswith(".md")]
     except Exception as e:
-        logger.warning(f"Failed to list vault files: {e}")
+        logger.warning("Failed to list vault files: %s", e)
         return None
 
     if not md_files:
@@ -244,21 +244,21 @@ def main() -> int:
 
     except ConfigurationError as e:
         notify_error("Configuration Error", str(e))
-        logger.error(f"Configuration error: {e}")
+        logger.error("Configuration error: %s", e)
         return 1
     except APIConnectionError as e:
         notify_error("Connection Error", str(e))
-        logger.error(f"Connection error: {e}")
+        logger.error("Connection error: %s", e)
         return 1
     except ClipperError as e:
         notify_error("Capture Error", str(e))
-        logger.error(f"Capture error: {e}")
+        logger.error("Capture error: %s", e)
         return 1
     except KeyboardInterrupt:
         print("\nCancelled.")
         return 130
-    except Exception as e:
-        notify_error("Unexpected Error", str(e))
+    except Exception:
+        notify_error("Unexpected Error", "An internal error occurred. Check logs for details.")
         logger.exception("Unexpected error")
         return 1
 
