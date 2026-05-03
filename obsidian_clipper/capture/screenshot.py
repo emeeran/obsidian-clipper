@@ -299,7 +299,7 @@ def _preprocess_for_ocr(img_path: Path) -> Path:
             img.save(out_path, "PNG")
             return out_path
     except Exception as e:
-        logger.debug(f"Image preprocessing failed, using original: {e}")
+        logger.debug("Image preprocessing failed, using original: %s", e)
         return img_path
 
 
