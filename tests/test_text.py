@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from obsidian_clipper.capture.text import get_active_window_title, get_selected_text
+from obsidian_clipper.capture.text import (
+    copy_to_clipboard,
+    get_active_window_title,
+    get_selected_text,
+)
 
 
 class TestGetSelectedText:
@@ -189,3 +193,196 @@ class TestGetActiveWindowTitle:
         result = get_active_window_title()
 
         assert result == ""
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_get_active_window_title_hyprctl_fallback(self, mock_run):
+        """Test hyprctl fallback when xdotool returns empty."""
+
+        xdotool_result = MagicMock()
+        xdotool_result.stdout = "  "
+        xdotool_result.returncode = 0
+
+        hyprctl_result = MagicMock()
+        hyprctl_result.stdout = '{"title": "Hyprland Window Title"}'
+        hyprctl_result.returncode = 0
+
+        mock_run.side_effect = [xdotool_result, hyprctl_result]
+
+        result = get_active_window_title()
+
+        assert result == "Hyprland Window Title"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_get_active_window_title_hyprctl_xdotool_fails(self, mock_run):
+        """Test hyprctl fallback when xdotool fails entirely."""
+        import subprocess
+
+        hyprctl_result = MagicMock()
+        hyprctl_result.stdout = '{"title": "My App"}'
+        hyprctl_result.returncode = 0
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xdotool"]),
+            hyprctl_result,
+        ]
+
+        result = get_active_window_title()
+
+        assert result == "My App"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_get_active_window_title_swaymsg_fallback(self, mock_run):
+        """Test swaymsg fallback when xdotool and hyprctl both fail."""
+        import subprocess
+
+        sway_result = MagicMock()
+        sway_result.stdout = '{"nodes": [{"focused": true, "name": "Sway Window"}]}'
+        sway_result.returncode = 0
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xdotool"]),
+            subprocess.CalledProcessError(1, ["hyprctl"]),
+            sway_result,
+        ]
+
+        result = get_active_window_title()
+
+        assert result == "Sway Window"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_get_active_window_title_swaymsg_nested(self, mock_run):
+        """Test swaymsg fallback with nested window tree."""
+        import subprocess
+
+        sway_result = MagicMock()
+        sway_result.stdout = (
+            '{"nodes": [{"focused": false, "nodes": ['
+            '{"focused": true, "name": "Nested Window"}]'
+            "}]} "
+        )
+        sway_result.returncode = 0
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xdotool"]),
+            subprocess.CalledProcessError(1, ["hyprctl"]),
+            sway_result,
+        ]
+
+        result = get_active_window_title()
+
+        assert result == "Nested Window"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_get_active_window_title_swaymsg_floating(self, mock_run):
+        """Test swaymsg fallback finds focused in floating_nodes."""
+        import subprocess
+
+        sway_result = MagicMock()
+        sway_result.stdout = (
+            '{"nodes": [{"focused": false}], '
+            '"floating_nodes": [{"focused": true, "name": "Floating Window"}]}'
+        )
+        sway_result.returncode = 0
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xdotool"]),
+            subprocess.CalledProcessError(1, ["hyprctl"]),
+            sway_result,
+        ]
+
+        result = get_active_window_title()
+
+        assert result == "Floating Window"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_get_active_window_title_hyprctl_bad_json(self, mock_run):
+        """Test graceful handling of malformed hyprctl JSON."""
+        import subprocess
+
+        bad_json_result = MagicMock()
+        bad_json_result.stdout = "not json"
+        bad_json_result.returncode = 0
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xdotool"]),
+            bad_json_result,
+            subprocess.CalledProcessError(1, ["swaymsg"]),
+        ]
+
+        result = get_active_window_title()
+
+        assert result == ""
+
+
+class TestCopyToClipboard:
+    """Tests for copy_to_clipboard function."""
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_copy_with_xclip_success(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        result = copy_to_clipboard("Hello world")
+
+        assert result is True
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0][0]
+        assert args[0] == "xclip"
+        assert args[1] == "-selection"
+        assert args[2] == "clipboard"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_copy_falls_back_to_wl_copy(self, mock_run):
+        import subprocess
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xclip"]),
+            MagicMock(returncode=0),
+        ]
+
+        result = copy_to_clipboard("Hello")
+
+        assert result is True
+        assert mock_run.call_count == 2
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_copy_both_fail(self, mock_run):
+        import subprocess
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xclip"]),
+            subprocess.CalledProcessError(1, ["wl-copy"]),
+        ]
+
+        result = copy_to_clipboard("Hello")
+
+        assert result is False
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_copy_primary_selection(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        result = copy_to_clipboard("Hello", clipboard="primary")
+
+        assert result is True
+        args = mock_run.call_args[0][0]
+        assert args[2] == "primary"
+
+    @patch("obsidian_clipper.capture.text.subprocess.run")
+    def test_copy_primary_wl_copy_flag(self, mock_run):
+        import subprocess
+
+        mock_run.side_effect = [
+            subprocess.CalledProcessError(1, ["xclip"]),
+            MagicMock(returncode=0),
+        ]
+
+        result = copy_to_clipboard("Hello", clipboard="primary")
+
+        assert result is True
+        # Second call should be wl-copy --primary
+        wl_call = mock_run.call_args_list[1]
+        assert "--primary" in wl_call[0][0]

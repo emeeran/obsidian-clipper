@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -132,19 +133,35 @@ class Config:
 
         if not self.api_key:
             errors.append(
-                "API key is required. Set OBSIDIAN_API_KEY environment variable."
+                "API key is required. Set OBSIDIAN_API_KEY environment variable "
+                "or run `obsidian-clipper --config-ui`."
+            )
+        elif len(self.api_key) < 10:
+            errors.append(
+                "API key appears too short. Check your Obsidian Local REST API settings."
             )
 
         if not self.base_url:
             errors.append(
                 "Base URL is required. Set OBSIDIAN_BASE_URL environment variable."
             )
+        elif not self.base_url.startswith(("http://", "https://")):
+            errors.append(
+                f"Base URL must start with http:// or https:// (got: {self.base_url}). "
+                "Typical value: http://127.0.0.1:27124"
+            )
 
         if not self.default_note:
             errors.append("Default note path is required.")
 
-        if self.timeout <= 0:
-            errors.append("Timeout must be a positive integer.")
+        if not isinstance(self.timeout, int) or self.timeout <= 0:
+            errors.append(
+                f"Timeout must be a positive integer (got: {self.timeout!r}). "
+                "Set OBSIDIAN_TIMEOUT to a number like 10."
+            )
+
+        if not self.ocr_language:
+            errors.append("OCR language is required (default: 'eng').")
 
         return errors
 
@@ -153,8 +170,10 @@ class Config:
         return len(self.validate()) == 0
 
 
-# Global config instance
+# Global config instance with thread-safe access
+
 _config: Config | None = None
+_config_lock = threading.Lock()
 
 
 def get_config(reload: bool = False) -> Config:
@@ -168,7 +187,10 @@ def get_config(reload: bool = False) -> Config:
     """
     global _config
     if _config is None or reload:
-        _config = Config()
+        with _config_lock:
+            # Double-check after acquiring lock
+            if _config is None or reload:
+                _config = Config()
     return _config
 
 
@@ -179,4 +201,110 @@ def set_config(config: Config) -> None:
         config: Config instance to use globally.
     """
     global _config
-    _config = config
+    with _config_lock:
+        _config = config
+
+
+# --- Capture Profiles ---
+
+PROFILES: dict[str, dict[str, str | bool | int]] = {
+    "research": {
+        "tags": "research,reading",
+        "note": "00-Inbox/Research Note.md",
+        "ocr": True,
+        "append": True,
+    },
+    "quick": {
+        "tags": "quick-capture",
+        "note": "00-Inbox/",
+        "ocr": False,
+    },
+    "code": {
+        "tags": "code,snippet",
+        "note": "Code Snippets/",
+        "ocr": False,
+    },
+    "web": {
+        "tags": "web,article",
+        "note": "Web Clippings/",
+        "ocr": True,
+    },
+}
+
+
+def get_profile(name: str) -> dict[str, str | bool | int]:
+    """Get a capture profile by name.
+
+    Profiles can be overridden via OBSIDIAN_PROFILE_<NAME>_<KEY>
+    environment variables, e.g. OBSIDIAN_PROFILE_RESEARCH_TAGS=research,papers.
+
+    Args:
+        name: Profile name (e.g., 'research', 'quick').
+
+    Returns:
+        Profile dict with keys like 'tags', 'note', 'ocr'.
+
+    Raises:
+        ValueError: If profile name is not found.
+    """
+    profile = PROFILES.get(name)
+    if profile is None:
+        available = ", ".join(sorted(PROFILES))
+        raise ValueError(f"Unknown profile '{name}'. Available: {available}")
+
+    # Allow env overrides: OBSIDIAN_PROFILE_<NAME>_<KEY>
+    env_prefix = f"OBSIDIAN_PROFILE_{name.upper()}_"
+    overrides: dict[str, str | bool | int] = {}
+    for key, value in os.environ.items():
+        if key.startswith(env_prefix):
+            field = key[len(env_prefix) :].lower()
+            if value.lower() in ("true", "false"):
+                overrides[field] = value.lower() == "true"
+            else:
+                overrides[field] = value
+
+    return {**profile, **overrides}
+
+
+def get_vault_config(vault_name: str) -> Config:
+    """Get a Config instance for a named vault.
+
+    Reads OBSIDIAN_<VAULTNAME>_API_KEY, OBSIDIAN_<VAULTNAME>_BASE_URL, etc.
+    Falls back to default OBSIDIAN_* vars for any unset fields.
+
+    Args:
+        vault_name: Vault identifier (e.g., 'work', 'personal').
+
+    Returns:
+        Config instance with vault-specific values.
+    """
+    prefix = f"OBSIDIAN_{vault_name.upper()}_"
+
+    # Temporarily set vault-specific env vars as the standard ones
+    # so Config.load() picks them up, preserving any user-set defaults.
+    env_backup: dict[str, str | None] = {}
+    env_mappings = {
+        "API_KEY": "OBSIDIAN_API_KEY",
+        "BASE_URL": "OBSIDIAN_BASE_URL",
+        "DEFAULT_NOTE": "OBSIDIAN_DEFAULT_NOTE",
+        "ATTACHMENT_DIR": "OBSIDIAN_ATTACHMENT_DIR",
+        "VERIFY_SSL": "OBSIDIAN_VERIFY_SSL",
+        "TIMEOUT": "OBSIDIAN_TIMEOUT",
+        "OCR_LANGUAGE": "OBSIDIAN_OCR_LANGUAGE",
+    }
+
+    for suffix, standard_key in env_mappings.items():
+        vault_key = f"{prefix}{suffix}"
+        if vault_key in os.environ:
+            env_backup[standard_key] = os.environ.get(standard_key)
+            os.environ[standard_key] = os.environ[vault_key]
+
+    try:
+        return Config()
+    finally:
+        # Restore original env vars
+        for standard_key, original_value in env_backup.items():
+            if original_value is None:
+                os.environ.pop(standard_key, None)
+            else:
+                os.environ[standard_key] = original_value

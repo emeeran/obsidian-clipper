@@ -14,6 +14,7 @@ from obsidian_clipper.utils import (
     notify,
     notify_error,
     notify_success,
+    notify_warning,
     run_command_safely,
     run_command_with_fallback,
 )
@@ -144,13 +145,27 @@ class TestNotifications:
     def test_notify_success_helper(self, mock_notify):
         """Test notify_success helper."""
         notify_success("Title", "Message")
-        mock_notify.assert_called_once_with("Title", "Message", Urgency.NORMAL)
+        mock_notify.assert_called_once_with("Title", "Message", Urgency.NORMAL, icon=None)
 
     @patch("obsidian_clipper.utils.notification.notify")
     def test_notify_error_helper(self, mock_notify):
         """Test notify_error helper."""
         notify_error("Title", "Message")
         mock_notify.assert_called_once_with("Title", "Message", Urgency.CRITICAL)
+
+    @patch("obsidian_clipper.utils.notification.notify")
+    def test_notify_warning_helper(self, mock_notify):
+        """Test notify_warning helper."""
+        notify_warning("Title", "Message")
+        mock_notify.assert_called_once_with("Title", "Message", Urgency.LOW)
+
+    @patch("obsidian_clipper.utils.notification.run_command_safely")
+    def test_notify_string_urgency(self, mock_run):
+        """Test notify with string urgency value."""
+        result = notify("Title", "Message", urgency="critical")
+        assert result is True
+        call_args = mock_run.call_args[0][0]
+        assert "critical" in call_args
 
 
 class TestCircuitBreaker:

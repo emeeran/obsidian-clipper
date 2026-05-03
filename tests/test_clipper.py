@@ -317,18 +317,21 @@ class TestMain:
     @patch("obsidian_clipper.cli.main.validate_config")
     @patch("obsidian_clipper.cli.main.ObsidianClient")
     @patch("obsidian_clipper.cli.main.get_config")
+    @patch("obsidian_clipper.workflow.capture.get_citation")
     @patch("obsidian_clipper.workflow.capture.get_selected_text")
     @patch("obsidian_clipper.cli.main.notify_success")
     def test_main_text_capture_success(
         self,
         mock_notify,
         mock_get_text,
+        mock_get_citation,
         mock_get_config,
         mock_client_class,
         mock_validate,
     ):
         """Test successful text capture."""
         mock_get_text.return_value = "Test text"
+        mock_get_citation.return_value = None
         mock_config = MagicMock()
         mock_config.default_note = "Notes.md"
         mock_get_config.return_value = mock_config
@@ -336,7 +339,7 @@ class TestMain:
         mock_client = MagicMock()
         mock_client.check_connection.return_value = True
         mock_client.ensure_note_exists.return_value = True
-        mock_client.append_to_note.return_value = True
+        mock_client.create_note.return_value = True
         mock_client_class.return_value.__enter__.return_value = mock_client
 
         with patch("sys.argv", ["clipper"]):
@@ -370,18 +373,21 @@ class TestMain:
     @patch("obsidian_clipper.cli.main.validate_config")
     @patch("obsidian_clipper.cli.main.ObsidianClient")
     @patch("obsidian_clipper.cli.main.get_config")
+    @patch("obsidian_clipper.workflow.capture.get_citation")
     @patch("obsidian_clipper.workflow.capture.get_selected_text")
     @patch("obsidian_clipper.cli.main.notify_error")
     def test_main_no_text(
         self,
         mock_notify_error,
         mock_get_text,
+        mock_get_citation,
         mock_get_config,
         mock_client_class,
         mock_validate,
     ):
         """Test handling when no text selected."""
         mock_get_text.return_value = ""
+        mock_get_citation.return_value = None
         mock_client = MagicMock()
         mock_client.check_connection.return_value = True
         mock_client_class.return_value.__enter__.return_value = mock_client
@@ -464,6 +470,7 @@ class TestMain:
         mock_client = MagicMock()
         mock_client.check_connection.return_value = True
         mock_client.ensure_note_exists.return_value = True
+        mock_client.create_note.return_value = True
         mock_client_class.return_value.__enter__.return_value = mock_client
 
         mock_prepare.return_value = CaptureSession(

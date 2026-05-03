@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from obsidian_clipper.cli.tui import ConfigTUI, launch_config_ui
 

@@ -132,6 +132,10 @@ def retry_with_backoff(
             if circuit_breaker and result:
                 circuit_breaker.record_success()
 
+            # Record failure on final attempt if result is still falsy
+            if circuit_breaker and not result:
+                circuit_breaker.record_failure()
+
             return result
 
         except Exception as e:

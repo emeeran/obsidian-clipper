@@ -30,9 +30,10 @@ def get_selected_text() -> str:
         text = result.stdout.strip()
         if text:
             return text
+    except FileNotFoundError:
+        logger.debug("xclip not found (install: sudo apt install xclip)")
     except (
         subprocess.CalledProcessError,
-        FileNotFoundError,
         subprocess.TimeoutExpired,
     ):
         pass
@@ -49,9 +50,10 @@ def get_selected_text() -> str:
         text = result.stdout.strip()
         if text:
             return text
+    except FileNotFoundError:
+        logger.debug("wl-paste not found (install: sudo apt install wl-clipboard)")
     except (
         subprocess.CalledProcessError,
-        FileNotFoundError,
         subprocess.TimeoutExpired,
     ):
         pass
@@ -79,9 +81,10 @@ def get_active_window_title() -> str:
         title = result.stdout.strip()
         if title:
             return title
+    except FileNotFoundError:
+        logger.debug("xdotool not found (install: sudo apt install xdotool)")
     except (
         subprocess.CalledProcessError,
-        FileNotFoundError,
         subprocess.TimeoutExpired,
     ):
         pass
@@ -99,9 +102,10 @@ def get_active_window_title() -> str:
         title = data.get("title", "").strip()
         if title:
             return title
+    except FileNotFoundError:
+        logger.debug("hyprctl not found (install Hyprland window manager)")
     except (
         subprocess.CalledProcessError,
-        FileNotFoundError,
         subprocess.TimeoutExpired,
         json.JSONDecodeError,
         KeyError,
@@ -135,9 +139,10 @@ def get_active_window_title() -> str:
         title = _find_focused(data).strip()
         if title:
             return title
+    except FileNotFoundError:
+        logger.debug("swaymsg not found (install: sudo apt install sway)")
     except (
         subprocess.CalledProcessError,
-        FileNotFoundError,
         subprocess.TimeoutExpired,
         json.JSONDecodeError,
     ):

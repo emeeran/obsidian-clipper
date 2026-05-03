@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.exceptions import InsecureRequestWarning
 from urllib3.util.retry import Retry
+
+# Suppress SSL warnings when verify_ssl=False (user explicitly opted in)
+warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 
 from ..config import Config, get_config
 from ..exceptions import (
@@ -21,8 +26,8 @@ from ..utils.retry import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
-# Pattern for detecting Windows drive letters
-_DRIVE_LETTER_PATTERN = re.compile(r"^\w+:")
+# Pattern for detecting Windows drive letters (e.g. C:, D:)
+_DRIVE_LETTER_PATTERN = re.compile(r"^[A-Za-z]:")
 
 
 def validate_path(path: str) -> str:

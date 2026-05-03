@@ -47,15 +47,36 @@ def _wait_for_file(filepath: str | Path, timeout: float = 3.0) -> bool:
         return False
 
 
+def _detect_display_server() -> str:
+    """Detect the current display server type.
+
+    Returns:
+        'x11', 'wayland', or 'unknown'.
+    """
+    session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
+    if session_type == "x11":
+        return "x11"
+    if session_type == "wayland":
+        return "wayland"
+    # Fallback heuristics
+    if os.environ.get("WAYLAND_DISPLAY"):
+        return "wayland"
+    if os.environ.get("DISPLAY"):
+        return "x11"
+    return "unknown"
+
+
 def take_screenshot(
     filepath: str | Path,
     tool: str = "auto",
+    annotate: bool = False,
 ) -> bool:
     """Capture screen area using available screenshot tools.
 
     Args:
         filepath: Path to save screenshot.
-        tool: Screenshot tool to use ('flameshot', 'grim', 'auto').
+        tool: Screenshot tool to use ('flameshot', 'grim', 'scrot', 'auto').
+        annotate: Open screenshot in annotation editor before saving.
 
     Returns:
         True if screenshot was captured successfully.
@@ -67,28 +88,52 @@ def take_screenshot(
     filepath_str = str(filepath)
 
     if tool == "auto":
-        # Try flameshot first (X11), then grim+slurp (Wayland)
-        success = _capture_with_flameshot(filepath_str)
-        if not success:
+        display = _detect_display_server()
+        # Try the native tool first based on detected display server
+        if display == "wayland":
             success = _capture_with_grim(filepath_str)
+            if not success:
+                success = _capture_with_flameshot(filepath_str)
+        else:
+            # X11 or unknown — try flameshot first, then scrot
+            success = _capture_with_flameshot(filepath_str)
+            if not success:
+                success = _capture_with_grim(filepath_str)
+            if not success:
+                success = _capture_with_scrot(filepath_str)
         if not success:
-            raise ScreenshotError("No compatible screenshot tool available")
+            raise ScreenshotError(
+                f"No compatible screenshot tool available (detected: {display}). "
+                "Install one of: flameshot (X11), grim+slurp (Wayland), scrot"
+            )
     elif tool == "flameshot":
-        if not _capture_with_flameshot(filepath_str):
-            raise ScreenshotError("Flameshot capture failed")
+        if not _capture_with_flameshot(filepath_str, annotate=annotate):
+            raise ScreenshotError(
+                "Flameshot capture failed. "
+                "Install: sudo apt install flameshot"
+            )
     elif tool == "grim":
         if not _capture_with_grim(filepath_str):
-            raise ScreenshotError("grim/slurp capture failed")
+            raise ScreenshotError(
+                "grim/slurp capture failed. "
+                "Install: sudo apt install grim slurp (Wayland only)"
+            )
     else:
         raise ScreenshotError(f"Unknown screenshot tool: {tool}")
 
     return filepath.exists()
 
 
-def _capture_with_flameshot(filepath: str) -> bool:
-    """Capture screenshot using Flameshot (X11)."""
+def _capture_with_flameshot(filepath: str, annotate: bool = False) -> bool:
+    """Capture screenshot using Flameshot (X11).
+
+    Args:
+        filepath: Path to save screenshot.
+        annotate: Skip raw capture and go straight to GUI for annotation.
+    """
     try:
-        if _capture_with_flameshot_raw(filepath):
+        # When annotating, skip the fast raw path and go straight to GUI
+        if not annotate and _capture_with_flameshot_raw(filepath):
             return True
 
         # Prefer auto-accept mode so area selection immediately writes file,
@@ -157,12 +202,17 @@ def _save_clipboard_image(filepath: str) -> bool:
                 check=False,
             )
 
-        return (
-            result.returncode == 0
-            and os.path.exists(filepath)
-            and os.path.getsize(filepath) > 0
-        )
+        if result.returncode != 0 or os.path.getsize(filepath) == 0:
+            # Clean up empty/failed file to avoid leaving garbage on disk
+            with contextlib.suppress(OSError):
+                os.unlink(filepath)
+            return False
+
+        return True
     except (subprocess.SubprocessError, OSError):
+        # Clean up on exception too
+        with contextlib.suppress(OSError):
+            os.unlink(filepath)
         return False
 
 
@@ -196,6 +246,63 @@ def _capture_with_grim(filepath: str) -> bool:
         return False
 
 
+def _capture_with_scrot(filepath: str) -> bool:
+    """Capture screenshot using scrot (X11 fallback).
+
+    scrot is a simple, widely-available X11 screenshot tool that supports
+    interactive area selection with -s.
+    """
+    try:
+        result = subprocess.run(
+            ["scrot", "-s", filepath],
+            capture_output=True,
+            timeout=60,
+        )
+        return result.returncode == 0 and os.path.exists(filepath)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def _preprocess_for_ocr(img_path: Path) -> Path:
+    """Preprocess image for better OCR accuracy.
+
+    Converts to grayscale and increases contrast. Saves the enhanced
+    image to a temp path and returns it. Falls back to the original
+    if Pillow is unavailable or processing fails.
+
+    Args:
+        img_path: Path to the original image.
+
+    Returns:
+        Path to the preprocessed image (or original on failure).
+    """
+    try:
+        from PIL import Image, ImageEnhance, ImageFilter
+    except ImportError:
+        return img_path
+
+    try:
+        with Image.open(img_path) as img:
+            # Convert to grayscale for cleaner OCR
+            if img.mode != "L":
+                img = img.convert("L")
+
+            # Increase contrast
+            enhancer = ImageEnhance.Contrast(img)
+            img = enhancer.enhance(1.5)
+
+            # Slight sharpening
+            img = img.filter(ImageFilter.SHARPEN)
+
+            # Save to temp file
+            out_path = img_path.with_suffix(".ocr.png")
+            img.save(out_path, "PNG")
+            return out_path
+    except Exception as e:
+        logger.debug(f"Image preprocessing failed, using original: {e}")
+        return img_path
+
+
 def ocr_image(
     img_path: str | Path,
     language: str | None = None,
@@ -224,8 +331,11 @@ def ocr_image(
     config = get_config()
     lang = language or config.ocr_language
 
+    # Preprocess image for better OCR results
+    ocr_path = _preprocess_for_ocr(img_path)
+
     try:
-        cmd = ["tesseract", str(img_path), "stdout", "-l", lang]
+        cmd = ["tesseract", str(ocr_path), "stdout", "-l", lang]
         if tessconfig:
             cmd.append(tessconfig)
 
@@ -236,7 +346,17 @@ def ocr_image(
             check=True,
         )
         return str(result.stdout.strip())
+    except FileNotFoundError:
+        # Clean up preprocessed file
+        if ocr_path != img_path and ocr_path.exists():
+            ocr_path.unlink(missing_ok=True)
+        raise OCRError(
+            "Tesseract not found. Install: sudo apt install tesseract-ocr"
+        ) from None
     except Exception as e:
+        # Clean up preprocessed file
+        if ocr_path != img_path and ocr_path.exists():
+            ocr_path.unlink(missing_ok=True)
         logger.error(f"OCR failed: {e}")
         raise OCRError(f"OCR processing failed: {e}") from e
 
@@ -270,10 +390,12 @@ class ScreenshotCapture:
         tool: str = "auto",
         ocr_language: str | None = None,
         perform_ocr: bool = True,
+        annotate: bool = False,
     ):
         self.tool = tool
         self.ocr_language = ocr_language
         self.perform_ocr = perform_ocr
+        self.annotate = annotate
         self._temp_file: Path | None = None
 
     def capture(self) -> tuple[Path | None, str]:
@@ -287,7 +409,7 @@ class ScreenshotCapture:
         self._temp_file = create_temp_screenshot()
 
         try:
-            success = take_screenshot(self._temp_file, self.tool)
+            success = take_screenshot(self._temp_file, self.tool, annotate=self.annotate)
             if not success:
                 return None, ""
 

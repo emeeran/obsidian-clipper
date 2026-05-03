@@ -6,7 +6,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Protocol
 
 from .text import get_active_window_title
 
@@ -115,6 +115,19 @@ class Citation:
 
     def __str__(self) -> str:
         return self.format_markdown()
+
+    def get_auto_tags(self) -> list[str]:
+        """Suggest tags based on source type.
+
+        Returns:
+            List of tag strings (without # prefix).
+        """
+        tag_map: dict[SourceType, list[str]] = {
+            SourceType.PDF: ["pdf", "research"],
+            SourceType.EPUB: ["epub", "reading"],
+            SourceType.BROWSER: ["web", "article"],
+        }
+        return tag_map.get(self.source_type, [])[:]
 
 
 def parse_pdf_citation(window_title: str) -> Citation | None:
@@ -391,6 +404,38 @@ def parse_generic_citation(window_title: str) -> Citation | None:
     )
 
 
+# Parser registry: ordered list of citation parsers
+# Use @citation_parser to register additional parsers from external code.
+CITATION_PARSERS: list[CitationParserFunc] = [  # type: ignore[type-arg]
+    parse_pdf_citation,
+    parse_epub_citation,
+    parse_browser_citation,
+    parse_code_editor_citation,
+    parse_generic_citation,
+]
+
+
+class CitationParserFunc(Protocol):
+    """Protocol for citation parser functions."""
+
+    def __call__(self, window_title: str) -> Citation | None: ...
+
+
+def citation_parser(func: CitationParserFunc) -> CitationParserFunc:
+    """Register a function as a citation parser.
+
+    Decorated parsers are appended to CITATION_PARSERS and tried
+    in order during citation detection.
+
+    Example:
+        @citation_parser
+        def parse_myapp_citation(window_title: str) -> Citation | None:
+            ...
+    """
+    CITATION_PARSERS.append(func)
+    return func
+
+
 def parse_citation_from_window_title(window_title: str) -> Citation | None:
     """Parse a citation directly from a given window title."""
     if not window_title:
@@ -412,16 +457,6 @@ def parse_citation_from_window_title(window_title: str) -> Citation | None:
         title=normalized_title,
         source_type=SourceType.UNKNOWN,
     )
-
-
-# Parser registry: ordered list of citation parsers
-CITATION_PARSERS = [
-    parse_pdf_citation,
-    parse_epub_citation,
-    parse_browser_citation,
-    parse_code_editor_citation,
-    parse_generic_citation,
-]
 
 
 def _is_ignored_window(window_title: str) -> bool:

@@ -38,7 +38,7 @@ class TestConfig:
         """Test headers are cached."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-key"
+        config.api_key = "test-api-key-12345"
         config._headers = {}
 
         headers1 = config.headers
@@ -62,10 +62,11 @@ class TestConfig:
         """Test validation fails without base URL."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-key"
+        config.api_key = "test-api-key-12345"
         config.base_url = ""
         config.default_note = "Notes.md"
         config.timeout = 10
+        config.ocr_language = "eng"
 
         errors = config.validate()
         assert len(errors) == 1
@@ -75,7 +76,7 @@ class TestConfig:
         """Test validation fails with invalid timeout."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-key"
+        config.api_key = "test-api-key-12345"
         config.base_url = "https://127.0.0.1:27124"
         config.default_note = "Notes.md"
         config.timeout = 0
@@ -88,7 +89,7 @@ class TestConfig:
         """Test validation passes with valid config."""
         config = Config.__new__(Config)
         config._loaded = False
-        config.api_key = "test-key"
+        config.api_key = "test-api-key-12345"
         config.base_url = "https://127.0.0.1:27124"
         config.default_note = "Notes.md"
         config.timeout = 10

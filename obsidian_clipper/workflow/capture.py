@@ -95,6 +95,7 @@ def _capture_screenshot_session(
         tool=args.screenshot_tool,
         ocr_language=args.ocr_lang,
         perform_ocr=perform_ocr,
+        annotate=getattr(args, "annotate", False),
     )
 
     try:
@@ -159,13 +160,15 @@ def process_and_save_content(
     session: CaptureSession,
     client: ObsidianClient,
     target_dir: str = "",
+    append: bool = False,
 ) -> bool:
-    """Process captured content and save to Obsidian as a new note.
+    """Process captured content and save to Obsidian.
 
     Args:
         session: Capture session with content.
         client: Obsidian API client.
         target_dir: Target directory for new notes (e.g., "00-Inbox/").
+        append: If True, append to target_dir (treated as note path) instead of creating a new note.
 
     Returns:
         True if successful.
@@ -180,10 +183,17 @@ def process_and_save_content(
             if session.screenshot_path.exists():
                 session.screenshot_path.unlink()
 
-    # Generate unique note path and create new note
-    note_path = session.get_note_filename(target_dir)
     content = session.to_markdown()
-    logger.debug("Creating note: %s", note_path)
-    logger.debug("Session markdown content:\n%s", content)
 
-    return client.create_note(note_path, content)
+    if append:
+        # target_dir is the note path to append to
+        logger.debug("Appending to note: %s", target_dir)
+        # Ensure the note exists first
+        client.ensure_note_exists(target_dir)
+        return client.append_to_note(target_dir, "\n" + content)
+    else:
+        # Generate unique note path and create new note
+        note_path = session.get_note_filename(target_dir)
+        logger.debug("Creating note: %s", note_path)
+        logger.debug("Session markdown content:\n%s", content)
+        return client.create_note(note_path, content)

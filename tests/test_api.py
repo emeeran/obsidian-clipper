@@ -487,3 +487,71 @@ class TestObsidianClient:
 
         result = client.ensure_note_exists("Notes/New.md")
         assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_create_note_success(self, mock_session, client):
+        """Test successful note creation."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.create_note("Notes/NewNote.md", "# Hello")
+        assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_create_note_success_200(self, mock_session, client):
+        """Test note creation with 200 status."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.create_note("Notes/Note.md", "Content")
+        assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_create_note_success_204(self, mock_session, client):
+        """Test note creation with 204 status."""
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.create_note("Notes/Note.md", "Content")
+        assert result is True
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_create_note_server_error(self, mock_session, client):
+        """Test note creation fails on 500."""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_session.return_value.request.return_value = mock_response
+
+        result = client.create_note("Notes/Note.md", "Content")
+        assert result is False
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_create_note_connection_error(self, mock_session, client):
+        """Test note creation returns False on connection error."""
+        mock_session_instance = MagicMock()
+        mock_session_instance.request.side_effect = (
+            requests.exceptions.ConnectionError()
+        )
+        mock_session.return_value = mock_session_instance
+
+        result = client.create_note("Notes/Note.md", "Content")
+        assert result is False
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_create_note_sends_put_request(self, mock_session, client):
+        """Test create_note sends PUT request with correct content type."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_session_instance = MagicMock()
+        mock_session_instance.request.return_value = mock_response
+        mock_session.return_value = mock_session_instance
+
+        client.create_note("Notes/Test.md", "# Hello World")
+
+        mock_session_instance.request.assert_called_once()
+        call_args = mock_session_instance.request.call_args
+        assert call_args[0][0] == "PUT"
+        assert "text/markdown" in str(call_args)

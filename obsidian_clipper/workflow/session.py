@@ -67,6 +67,88 @@ class CaptureSession:
             or self.ocr_text
         )
 
+    def _render_template(self) -> str:
+        """Render template with placeholders and conditionals.
+
+        Supported placeholders: {{text}}, {{ocr}}, {{citation}}, {{timestamp}},
+        {{tags}}, {{source}}, {{source_type}}, {{date}}, {{time}}.
+
+        Supported conditionals: {{#if field}}...{{/if}} — content is included
+        only when the field is truthy. Nested placeholders inside conditionals
+        are also expanded.
+        """
+        content = self.template or ""
+
+        # Build substitution map
+        ts_parts = self.timestamp.split(" ")
+        subs: dict[str, str] = {
+            "text": self.text or "",
+            "ocr": self.ocr_text or "",
+            "citation": self.citation.format_markdown() if self.citation else "",
+            "timestamp": self.timestamp,
+            "tags": ", ".join(self.tags) if self.tags else "",
+            "source": (self.citation.source if self.citation and self.citation.source else ""),
+            "source_type": (self.citation.source_type.value if self.citation else ""),
+            "date": ts_parts[0] if ts_parts else "",
+            "time": ts_parts[1] if len(ts_parts) > 1 else "",
+        }
+
+        # Process conditionals: {{#if field}}...{{/if}}
+        def _eval_conditional(match: re.Match) -> str:
+            field = match.group(1).strip()
+            body = match.group(2)
+            # Check if the field value is truthy
+            value = subs.get(field, "")
+            if value:
+                return body
+            return ""
+
+        content = re.sub(r"\{\{#if\s+(\w+)\}\}(.*?)\{\{/if\}\}", _eval_conditional, content, flags=re.DOTALL)
+
+        # Replace all placeholders
+        for key, value in subs.items():
+            content = content.replace("{{" + key + "}}", value)
+
+        return content
+
+    def _render_frontmatter(self, tags: list[str]) -> str:
+        """Render YAML frontmatter with tags."""
+        if not tags:
+            return ""
+        parts = ["---\n", "tags:\n"]
+        for tag in tags:
+            tag = tag.strip()
+            if tag:
+                parts.append(f"  - {tag.lstrip('#')}\n")
+        parts.append("---\n\n")
+        return "".join(parts)
+
+    def _render_blockquote(self) -> str:
+        """Render text and OCR content as blockquote."""
+        parts = []
+        if self.text:
+            parts.extend(f"> {line}\n" for line in self.text.split("\n"))
+        if self.ocr_text:
+            if self.text:
+                parts.append(">\n")
+            parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
+        return "".join(parts)
+
+    def _render_citation(self) -> str:
+        """Render citation as markdown line."""
+        if not self.citation:
+            return ""
+        citation_md = self.citation.format_markdown()
+        if not citation_md:
+            return ""
+        return f"> \n{citation_md}\n"
+
+    def _render_screenshot(self) -> str:
+        """Render screenshot embed."""
+        if self.screenshot_success and self.img_filename:
+            return f"\n![[{self.img_filename}]]\n"
+        return ""
+
     def to_markdown(self) -> str:
         """Convert captured content to markdown string.
 
@@ -77,54 +159,24 @@ class CaptureSession:
         - Citation line outside blockquote (italics, bullet separator)
         - Screenshot embed (if captured)
         """
-        parts = []
+        # Merge user tags with auto-generated tags from citation source
+        all_tags = list(self.tags)
+        if self.citation:
+            for tag in self.citation.get_auto_tags():
+                if tag not in all_tags:
+                    all_tags.append(tag)
 
-        # Add YAML frontmatter
-        if self.tags:
-            parts.append("---\n")
-            parts.append("tags:\n")
-            for tag in self.tags:
-                tag = tag.strip()
-                if tag:
-                    # Remove leading # if present
-                    tag = tag.lstrip("#")
-                    parts.append(f"  - {tag}\n")
-            parts.append("---\n\n")
-
+        parts = [self._render_frontmatter(all_tags)]
         parts.append(f"### 📌 {self.timestamp}\n\n")
 
         if self.template:
-            content = self.template
-            content = content.replace("{{text}}", self.text or "")
-            content = content.replace("{{ocr}}", self.ocr_text or "")
-            content = content.replace(
-                "{{citation}}", self.citation.format_markdown() if self.citation else ""
-            )
-            content = content.replace("{{timestamp}}", self.timestamp)
-            parts.append(content)
+            parts.append(self._render_template())
             parts.append("\n")
         else:
-            # Build blockquote with text and OCR using list comprehensions
-            if self.text:
-                parts.extend(f"> {line}\n" for line in self.text.split("\n"))
+            parts.append(self._render_blockquote())
+            parts.append(self._render_citation())
 
-            if self.ocr_text:
-                if self.text:
-                    parts.append(">\n")
-                parts.extend(f"> {line}\n" for line in self.ocr_text.split("\n"))
-
-            # Citation line (outside blockquote, with italics)
-            # Reuse Citation.format_markdown() to avoid duplication
-            if self.citation:
-                citation_md = self.citation.format_markdown()
-                if citation_md:
-                    parts.append("> \n")
-                    parts.append(citation_md)
-                    parts.append("\n")
-
-        # Screenshot embed
-        if self.screenshot_success and self.img_filename:
-            parts.append(f"\n![[{self.img_filename}]]\n")
+        parts.append(self._render_screenshot())
 
         return "".join(parts)
 

@@ -191,7 +191,15 @@ class HumanFormatter(logging.Formatter):
         """
         if self.use_colors:
             color = self.COLORS.get(record.levelname, "")
-            record.levelname = f"{color}{record.levelname:<8}{self.RESET}"
+            colored_level = f"{color}{record.levelname:<8}{self.RESET}"
+            # Format without mutating the shared record, which would
+            # corrupt downstream handlers (file/JSON) with ANSI codes.
+            saved = record.levelname
+            record.levelname = colored_level
+            try:
+                return super().format(record)
+            finally:
+                record.levelname = saved
 
         return super().format(record)
 

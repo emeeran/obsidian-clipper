@@ -11,9 +11,7 @@ from obsidian_clipper.capture import (
     Citation,
     ScreenshotCapture,
     SourceType,
-    get_active_window_title,
     get_citation,
-    get_selected_text,
     ocr_image,
     parse_browser_citation,
     parse_citation_from_window_title,
@@ -24,41 +22,6 @@ from obsidian_clipper.capture import (
     take_screenshot,
 )
 from obsidian_clipper.exceptions import ScreenshotError
-
-
-class TestTextCapture:
-    """Tests for text capture functions."""
-
-    @patch("obsidian_clipper.capture.text.subprocess.run")
-    def test_get_selected_text_success(self, mock_run):
-        """Test successful text capture."""
-        mock_result = MagicMock()
-        mock_result.stdout = "  selected text  "
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
-
-        result = get_selected_text()
-        assert result == "selected text"
-
-    @patch("obsidian_clipper.capture.text.subprocess.run")
-    def test_get_selected_text_empty(self, mock_run):
-        """Test when no text is selected."""
-        import subprocess
-
-        mock_run.side_effect = subprocess.CalledProcessError(1, "xclip")
-        result = get_selected_text()
-        assert result == ""
-
-    @patch("obsidian_clipper.capture.text.subprocess.run")
-    def test_get_active_window_title_success(self, mock_run):
-        """Test getting window title."""
-        mock_result = MagicMock()
-        mock_result.stdout = "Document.pdf — Page 42"
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
-
-        result = get_active_window_title()
-        assert result == "Document.pdf — Page 42"
 
 
 class TestCitationParsing:
@@ -302,10 +265,14 @@ class TestScreenshot:
         with pytest.raises(ScreenshotError):
             take_screenshot("/tmp/test.png", tool="flameshot")
 
+    @patch("obsidian_clipper.capture.screenshot.get_config")
     @patch("obsidian_clipper.capture.screenshot.Path.exists")
     @patch("obsidian_clipper.capture.screenshot.run_command_safely")
-    def test_ocr_image_success(self, mock_run, mock_exists):
+    def test_ocr_image_success(self, mock_run, mock_exists, mock_config):
         """Test successful OCR."""
+        mock_config_obj = MagicMock()
+        mock_config_obj.ocr_language = "eng"
+        mock_config.return_value = mock_config_obj
         mock_exists.return_value = True
         mock_result = MagicMock()
         mock_result.stdout = "Extracted text"

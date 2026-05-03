@@ -63,12 +63,12 @@ Environment variables:
         "--ocr",
         action="store_true",
         default=True,
-        help="Perform OCR on screenshot (default: True)",
+        help="Perform OCR on screenshot (enabled by default; use --no-ocr to disable)",
     )
     parser.add_argument(
         "--no-ocr",
         action="store_true",
-        help="Skip OCR processing on screenshot",
+        help="Disable OCR processing on screenshot",
     )
     parser.add_argument(
         "-n",
@@ -110,8 +110,40 @@ Environment variables:
         help="Launch the configuration TUI",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview capture as markdown without saving to Obsidian",
+    )
+    parser.add_argument(
+        "-p",
+        "--profile",
+        default=None,
+        help="Use a capture profile (e.g., 'research', 'quick', 'code')",
+    )
+    parser.add_argument(
+        "--pick",
+        action="store_true",
+        help="Pick target note interactively via fzf or rofi",
+    )
+    parser.add_argument(
+        "--vault",
+        default=None,
+        help="Use a named vault config (reads OBSIDIAN_<VAULT>_* env vars)",
+    )
+    parser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help="Append to existing note instead of creating a new one",
+    )
+    parser.add_argument(
+        "--annotate",
+        action="store_true",
+        help="Open screenshot for annotation before saving (requires flameshot)",
+    )
+    parser.add_argument(
         "--screenshot-tool",
-        choices=["auto", "flameshot", "grim"],
+        choices=["auto", "flameshot", "grim", "scrot"],
         default="auto",
         help="Screenshot tool to use (default: auto-detect)",
     )

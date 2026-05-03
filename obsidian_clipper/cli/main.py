@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from ..capture import SourceType
-from ..config import get_config
+from ..config import get_config, get_profile, get_vault_config
 from ..exceptions import (
     APIConnectionError,
     ClipperError,
@@ -16,6 +16,7 @@ from ..exceptions import (
 )
 from ..obsidian import ObsidianClient
 from ..utils import notify_error, notify_success
+from ..utils.command import run_command_safely
 from ..workflow import CaptureSession, prepare_capture_session, process_and_save_content
 from .args import parse_args, setup_logging
 
@@ -34,6 +35,50 @@ def validate_config() -> None:
             "Invalid configuration. Please set required environment variables.\n"
             "Run `obsidian-clipper --config-ui` for guided setup."
         )
+
+
+def _pick_note_with_fzf(client: ObsidianClient) -> str | None:
+    """Interactively pick a note using fzf or rofi.
+
+    Queries the vault for .md files and presents them via an interactive picker.
+
+    Args:
+        client: Obsidian API client for listing notes.
+
+    Returns:
+        Selected note path, or None if cancelled or picker unavailable.
+    """
+    # Fetch vault file list via the API search endpoint
+    try:
+        response = client._request("GET", "/")
+        if response.status_code != 200:
+            logger.warning("Could not list vault files")
+            return None
+        files = response.json().get("files", [])
+        md_files = [f for f in files if f.endswith(".md")]
+    except Exception as e:
+        logger.warning(f"Failed to list vault files: {e}")
+        return None
+
+    if not md_files:
+        logger.warning("No markdown files found in vault")
+        return None
+
+    # Try fzf first, then rofi
+    file_list = "\n".join(md_files)
+    for picker_cmd in [["fzf", "--prompt", "Select note: "], ["rofi", "-dmenu", "-p", "Note"]]:
+        try:
+            result = run_command_safely(
+                picker_cmd,
+                input_text=file_list,
+                timeout=60,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (FileNotFoundError, Exception):
+            continue
+
+    return None
 
 
 def _validate_session(session: CaptureSession, args: argparse.Namespace) -> str | None:
@@ -69,6 +114,7 @@ def _save_and_notify(
     session: CaptureSession,
     client: ObsidianClient,
     target_dir: str,
+    append: bool = False,
 ) -> int:
     """Process and save content, then notify user.
 
@@ -84,18 +130,21 @@ def _save_and_notify(
         notify_error("Obsidian Capture Failed", "No content captured.")
         return 1
 
-    if not process_and_save_content(session, client, target_dir):
+    if not process_and_save_content(session, client, target_dir, append=append):
         notify_error("Obsidian Capture Failed", "Failed to create note.")
         return 1
 
-    # Build success message
-    preview = session.get_preview()
-    msg = f'Captured: "{preview}"'
+    # Build success message with content details
+    preview = session.get_preview(60)
+    parts: list[str] = [f'"{preview}"']
     if session.screenshot_success:
-        msg += " + screenshot"
+        parts.append("screenshot")
     if session.ocr_text:
-        msg += " + OCR"
+        parts.append("OCR")
+    if session.citation:
+        parts.append(f"from {session.citation.source or session.citation.source_type.value}")
 
+    msg = "Captured " + " + ".join(parts)
     notify_success("Obsidian Capture", msg)
     return 0
 
@@ -109,6 +158,22 @@ def main() -> int:
     args = parse_args()
     setup_logging(verbose=args.verbose, debug=args.debug)
 
+    # Apply capture profile if specified (doesn't override explicit CLI args)
+    if args.profile:
+        try:
+            profile = get_profile(args.profile)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        if args.tags is None and "tags" in profile:
+            args.tags = profile["tags"]
+        if args.note is None and "note" in profile:
+            args.note = profile["note"]
+        if isinstance(profile.get("ocr"), bool) and not args.no_ocr:
+            args.ocr = profile["ocr"]
+        if isinstance(profile.get("append"), bool) and not args.append:
+            args.append = profile["append"]
+
     # Launch TUI if requested
     if args.config_ui:
         from .tui import launch_config_ui
@@ -119,19 +184,52 @@ def main() -> int:
     try:
         validate_config()
 
-        config = get_config()
+        # Load vault-specific config if requested
+        if args.vault:
+            config = get_vault_config(args.vault)
+            errors = config.validate()
+            if errors:
+                raise ConfigurationError(
+                    f"Vault '{args.vault}' config error: {'; '.join(errors)}"
+                )
+        else:
+            config = get_config()
+
+        # Dry-run: capture content, print markdown, exit
+        if args.dry_run:
+            session = prepare_capture_session(args)
+            error = _validate_session(session, args)
+            if error:
+                print(f"Error: {error}", file=sys.stderr)
+                return 1
+            print(session.to_markdown())
+            return 0
+
         # Use args.note as target directory, or default_note from config
         target_dir = args.note or config.default_note
-        # If target_dir ends with .md, extract the directory part
-        if target_dir.endswith(".md"):
+
+        # Interactive note picker overrides target_dir
+        if args.pick:
+            with ObsidianClient(config) as pick_client:
+                picked = _pick_note_with_fzf(pick_client)
+            if picked is None:
+                notify_error("Obsidian Capture", "Note picker cancelled or unavailable.")
+                return 1
+            target_dir = picked
+        # If target_dir ends with .md, extract the directory part (unless appending)
+        if not args.append and target_dir.endswith(".md"):
             target_dir = str(Path(target_dir).parent)
 
         with ObsidianClient(config) as client:
             if not client.check_connection():
                 notify_error(
                     "Obsidian Capture Failed",
-                    "Cannot connect to Obsidian. Check that Obsidian is running, "
-                    "the Local REST API plugin is enabled, and the API key matches.",
+                    f"Cannot connect to Obsidian at {config.base_url}.\n"
+                    "Troubleshooting:\n"
+                    "  1. Is Obsidian running?\n"
+                    "  2. Is the 'Local REST API' plugin installed and enabled?\n"
+                    "  3. Does the API key match? Run: obsidian-clipper --config-ui\n"
+                    f"  4. Test manually: curl -H 'Authorization: Bearer ...' {config.base_url}/",
                 )
                 return 1
 
@@ -142,7 +240,7 @@ def main() -> int:
                 notify_error("Obsidian Capture Failed", error)
                 return 1
 
-            return _save_and_notify(session, client, target_dir)
+            return _save_and_notify(session, client, target_dir, append=args.append)
 
     except ConfigurationError as e:
         notify_error("Configuration Error", str(e))

@@ -55,9 +55,9 @@ def notify(
         return False
 
 
-def notify_success(title: str, message: str) -> bool:
+def notify_success(title: str, message: str, icon: str | None = None) -> bool:
     """Send a success notification."""
-    return notify(title, message, Urgency.NORMAL)
+    return notify(title, message, Urgency.NORMAL, icon=icon)
 
 
 def notify_error(title: str, message: str) -> bool:

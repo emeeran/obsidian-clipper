@@ -23,6 +23,7 @@ def run_command_safely(
     timeout: int | None = None,
     check: bool = False,
     input_text: str | None = None,
+    text: bool = True,
 ) -> subprocess.CompletedProcess:
     """Run a command safely without shell injection risk.
 
@@ -32,6 +33,7 @@ def run_command_safely(
         timeout: Timeout in seconds.
         check: Raise exception on non-zero exit.
         input_text: Text to pass to stdin.
+        text: If True, decode stdout/stderr as text. Set to False for binary output.
 
     Returns:
         CompletedProcess instance.
@@ -46,7 +48,7 @@ def run_command_safely(
     result = subprocess.run(
         command,
         capture_output=capture_output,
-        text=True,
+        text=text,
         timeout=timeout,
         check=False,
         input=input_text,

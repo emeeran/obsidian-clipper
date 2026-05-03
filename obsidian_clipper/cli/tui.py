@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -102,7 +103,7 @@ class ConfigTUI(App[None]):
             Horizontal(
                 Label("Default Note Path:"),
                 Input(
-                    value=self.config_data.get("DEFAULT_NOTE_PATH", "00-Inbox/"),
+                    value=self.config_data.get("OBSIDIAN_DEFAULT_NOTE", "00-Inbox/"),
                     placeholder="e.g. 00-Inbox/ or Daily/{{date}}.md",
                     id="note_path",
                 ),
@@ -110,7 +111,7 @@ class ConfigTUI(App[None]):
             Horizontal(
                 Label("Attachment Dir:"),
                 Input(
-                    value=self.config_data.get("ATTACHMENT_DIR", "Attachments/"),
+                    value=self.config_data.get("OBSIDIAN_ATTACHMENT_DIR", "Attachments/"),
                     placeholder="e.g. Attachments/",
                     id="attachment_dir",
                 ),
@@ -150,6 +151,14 @@ class ConfigTUI(App[None]):
         with open(self.env_path, "w") as f:
             for key, value in new_config.items():
                 f.write(f"{key}={value}\n")
+
+        # Restrict permissions: only owner can read/write the API key file
+        os.chmod(self.env_path, 0o600)
+
+        # Reload the global config so subsequent operations use new values
+        from ..config import get_config
+
+        get_config(reload=True)
 
         self.notify("Configuration saved successfully!")
         self.exit()
