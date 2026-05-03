@@ -69,6 +69,40 @@ class CaptureSession:
             or self.ocr_text
         )
 
+    def _resolve_template(self) -> str:
+        """Resolve template from file path or named template.
+
+        Resolution order:
+        1. If template starts with '@': read file at path after '@'
+        2. If template has no '{{' and exists in config templates dir: load it
+        3. Otherwise: use template as-is (inline string)
+        """
+        raw = self.template or ""
+        if not raw:
+            return ""
+
+        # '@' prefix: load from file path
+        if raw.startswith("@"):
+            path = Path(raw[1:].strip())
+            try:
+                return path.read_text(encoding="utf-8")
+            except OSError as e:
+                import logging
+                logging.getLogger(__name__).warning("Template file not found: %s", e)
+                return ""
+
+        # Named template: check config templates dir
+        if "{{" not in raw:
+            config_dir = Path.home() / ".config" / "obsidian-clipper" / "templates"
+            named_path = config_dir / f"{raw}.md"
+            if named_path.exists():
+                try:
+                    return named_path.read_text(encoding="utf-8")
+                except OSError:
+                    pass
+
+        return raw
+
     def _render_template(self) -> str:
         """Render template with placeholders and conditionals.
 
@@ -79,7 +113,9 @@ class CaptureSession:
         only when the field is truthy. Nested placeholders inside conditionals
         are also expanded.
         """
-        content = self.template or ""
+        content = self._resolve_template()
+        if not content:
+            return ""
 
         # Build substitution map
         ts_parts = self.timestamp.split(" ")
@@ -173,8 +209,9 @@ class CaptureSession:
         date = self.timestamp.split(" ")[0] if " " in self.timestamp else self.timestamp
         parts.append(f"### {date}\n\n")
 
-        if self.template:
-            parts.append(self._render_template())
+        rendered_template = self._render_template() if self.template else ""
+        if rendered_template:
+            parts.append(rendered_template)
             parts.append("\n")
         elif self.screenshot_success and self.img_filename:
             body = [f"![[{self.img_filename}]]"]

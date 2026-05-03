@@ -9,6 +9,7 @@ from .citation import (
     parse_code_editor_citation,
     parse_epub_citation,
     parse_generic_citation,
+    parse_jetbrains_citation,
     parse_pdf_citation,
 )
 from .screenshot import (
@@ -39,4 +40,5 @@ __all__ = [
     "parse_generic_citation",
     "parse_browser_citation",
     "parse_code_editor_citation",
+    "parse_jetbrains_citation",
 ]

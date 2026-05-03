@@ -55,6 +55,13 @@ BROWSER_PATTERN = re.compile(
     r"|Brave|Chromium|Vivaldi)"
 )
 
+# JetBrains IDE title patterns: "file — project — IDEName"
+JETBRAINS_PATTERN = re.compile(
+    r"(.+?)\s*[—\-–]\s*(.+?)\s*[—\-–]\s*"
+    r"(IntelliJ IDEA|PyCharm|WebStorm|CLion|Android Studio|GoLand"
+    r"|RubyMine|PhpStorm|Rider|DataGrip|Fleet)"
+)
+
 # Reader apps whose titles should be skipped by the generic fallback parser
 READER_APP_PATTERN = re.compile(
     r"(Okular|Evince|Zathura|Foliate|Calibre|Thorium|FBReader)", re.IGNORECASE
@@ -343,6 +350,25 @@ def parse_browser_citation(window_title: str) -> Citation | None:
     return None
 
 
+def parse_jetbrains_citation(window_title: str) -> Citation | None:
+    """Parse window title to extract JetBrains IDE info.
+
+    Supports IntelliJ IDEA, PyCharm, WebStorm, CLion, Android Studio,
+    GoLand, RubyMine, PhpStorm, Rider, DataGrip, and Fleet.
+    """
+    if not window_title:
+        return None
+    match = JETBRAINS_PATTERN.match(window_title)
+    if match:
+        return Citation(
+            title=match.group(1).strip(),
+            source=match.group(3),
+            source_type=SourceType.UNKNOWN,
+            extra={"project": match.group(2).strip()},
+        )
+    return None
+
+
 def parse_code_editor_citation(window_title: str) -> Citation | None:
     """Parse window title to extract code editor info.
 
@@ -397,6 +423,7 @@ _PARSERS = [
     parse_pdf_citation,
     parse_epub_citation,
     parse_browser_citation,
+    parse_jetbrains_citation,
     parse_code_editor_citation,
     parse_generic_citation,
 ]

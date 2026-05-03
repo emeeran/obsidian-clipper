@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 from ..capture import SourceType
 from ..config import get_config, get_profile, get_vault_config
@@ -110,6 +113,49 @@ def _validate_session(session: CaptureSession, args: argparse.Namespace) -> str 
     return None
 
 
+def _save_via_uri(session: CaptureSession, vault_name: str | None = None) -> bool:
+    """Save content via obsidian:// URI scheme as a fallback.
+
+    Uses xdg-open to open an obsidian://new URI with the capture content.
+
+    Args:
+        session: Capture session with content.
+        vault_name: Optional vault name for the URI.
+
+    Returns:
+        True if xdg-open was invoked successfully.
+    """
+    if not session.has_content():
+        return False
+
+    content = session.to_markdown(include_frontmatter=False)
+
+    vault = vault_name or ""
+    encoded_content = quote(content)
+    uri = f"obsidian://new?vault={quote(vault)}&content={encoded_content}"
+
+    try:
+        result = subprocess.run(
+            ["xdg-open", uri],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0:
+            notify_success("Obsidian Capture", "Saved via Obsidian URI (API unavailable)")
+            return True
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+
+    return False
+
+
+def _cleanup_session(session: CaptureSession) -> None:
+    """Clean up temporary files from a capture session."""
+    if session.screenshot_path and session.screenshot_path.exists():
+        session.screenshot_path.unlink()
+
+
 def _save_and_notify(
     session: CaptureSession,
     client: ObsidianClient,
@@ -200,6 +246,7 @@ def main() -> int:
             session = prepare_capture_session(args)
             error = _validate_session(session, args)
             if error:
+                _cleanup_session(session)
                 print(f"Error: {error}", file=sys.stderr)
                 return 1
             print(session.to_markdown())
@@ -210,6 +257,12 @@ def main() -> int:
 
         with ObsidianClient(config) as client:
             if not client.check_connection():
+                # Try URI fallback before giving up
+                session = prepare_capture_session(args)
+                vault_name = os.environ.get("OBSIDIAN_VAULT_NAME", "")
+                if session.has_content() and _save_via_uri(session, vault_name):
+                    return 0
+
                 notify_error(
                     "Obsidian Capture Failed",
                     f"Cannot connect to Obsidian at {config.base_url}.\n"
@@ -237,6 +290,7 @@ def main() -> int:
 
             error = _validate_session(session, args)
             if error:
+                _cleanup_session(session)
                 notify_error("Obsidian Capture Failed", error)
                 return 1
 

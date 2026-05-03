@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -40,6 +41,61 @@ class TestProfiles:
         with patch.dict(os.environ, {"OBSIDIAN_PROFILE_RESEARCH_TAGS": "custom,tags"}):
             profile = get_profile("research")
             assert profile["tags"] == "custom,tags"
+
+
+class TestUserProfiles:
+    """Tests for user-defined profiles via TOML."""
+
+    def test_load_user_profiles_from_toml(self, tmp_path):
+        """Test loading user profiles from profiles.toml."""
+        from obsidian_clipper.config import _load_user_profiles
+
+        config_dir = tmp_path / ".config" / "obsidian-clipper"
+        config_dir.mkdir(parents=True)
+        (config_dir / "profiles.toml").write_text(
+            '[profiles.academic]\ntags = "academic,paper"\nnote = "Academic/"\nocr = true\n'
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            profiles = _load_user_profiles()
+
+        assert "academic" in profiles
+        assert profiles["academic"]["tags"] == "academic,paper"
+        assert profiles["academic"]["ocr"] is True
+
+    def test_user_profiles_merge_with_builtins(self, tmp_path):
+        """Test user profiles are accessible via get_profile."""
+        config_dir = tmp_path / ".config" / "obsidian-clipper"
+        config_dir.mkdir(parents=True)
+        (config_dir / "profiles.toml").write_text(
+            '[profiles.meeting]\ntags = "meeting"\nnote = "Meetings/"\n'
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            profile = get_profile("meeting")
+
+        assert profile["tags"] == "meeting"
+        assert profile["note"] == "Meetings/"
+
+    def test_missing_toml_file_returns_empty(self, tmp_path):
+        """Test graceful handling when profiles.toml doesn't exist."""
+        from obsidian_clipper.config import _load_user_profiles
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            profiles = _load_user_profiles()
+        assert profiles == {}
+
+    def test_invalid_toml_returns_empty(self, tmp_path):
+        """Test graceful handling of malformed TOML."""
+        from obsidian_clipper.config import _load_user_profiles
+
+        config_dir = tmp_path / ".config" / "obsidian-clipper"
+        config_dir.mkdir(parents=True)
+        (config_dir / "profiles.toml").write_text("this is not valid toml [[[[")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            profiles = _load_user_profiles()
+        assert profiles == {}
 
 
 class TestVaultConfig:
@@ -154,6 +210,56 @@ class TestTemplatePlaceholders:
         session.template = "At: {{timestamp}}"
         md = session.to_markdown()
         assert "At: 2024-01-15 10:30:00" in md
+
+
+class TestExternalTemplateFiles:
+    """Tests for file-based template resolution."""
+
+    def test_template_from_file_with_at_prefix(self, tmp_path):
+        """Test '@path' loads template from file."""
+        template_file = tmp_path / "my_template.md"
+        template_file.write_text("Custom: {{text}}")
+
+        session = CaptureSession(text="Hello")
+        session.template = f"@{template_file}"
+        md = session.to_markdown()
+        assert "Custom: Hello" in md
+
+    def test_template_from_missing_file_returns_empty(self, tmp_path):
+        """Test '@' with missing file gracefully returns empty."""
+        session = CaptureSession(text="Hello")
+        session.template = f"@{tmp_path / 'nonexistent.md'}"
+        md = session.to_markdown()
+        # Falls through to default callout rendering since template resolves to empty
+        assert "> [!quote]" in md
+
+    def test_template_from_named_file(self, tmp_path):
+        """Test named template loads from config dir."""
+        templates_dir = tmp_path / ".config" / "obsidian-clipper" / "templates"
+        templates_dir.mkdir(parents=True)
+        (templates_dir / "research.md").write_text("Research: {{text}}")
+
+        session = CaptureSession(text="Paper notes")
+        session.template = "research"
+
+        with patch("obsidian_clipper.workflow.session.Path.home", return_value=tmp_path):
+            md = session.to_markdown()
+        assert "Research: Paper notes" in md
+
+    def test_inline_template_unchanged(self):
+        """Test inline templates with {{ still work as before."""
+        session = CaptureSession(text="Hello")
+        session.template = "Text: {{text}}"
+        md = session.to_markdown()
+        assert "Text: Hello" in md
+
+    def test_named_template_falls_back_to_inline(self, tmp_path):
+        """Test non-matching named template is used as-is."""
+        session = CaptureSession(text="Hello")
+        session.template = "just-a-string"
+        # No {{ in template, no file in config dir — used as literal
+        md = session.to_markdown()
+        assert "just-a-string" in md
 
 
 class TestDryRunMode:

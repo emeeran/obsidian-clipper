@@ -483,3 +483,55 @@ class TestMain:
 
         assert result == 1
         mock_notify_error.assert_called()
+
+
+class TestURIFallback:
+    """Tests for Obsidian URI fallback."""
+
+    @patch("obsidian_clipper.cli.main.notify_success")
+    @patch("obsidian_clipper.cli.main.subprocess.run")
+    def test_save_via_uri_success(self, mock_run, mock_notify):
+        """Test URI fallback succeeds when xdg-open returns 0."""
+        from obsidian_clipper.cli.main import _save_via_uri
+
+        mock_run.return_value = MagicMock(returncode=0)
+
+        session = CaptureSession(text="Hello world")
+        result = _save_via_uri(session, "MyVault")
+
+        assert result is True
+        call_args = mock_run.call_args
+        uri = call_args[0][0][1]
+        assert uri.startswith("obsidian://new?")
+        assert "vault=MyVault" in uri
+
+    @patch("obsidian_clipper.cli.main.subprocess.run")
+    def test_save_via_uri_failure(self, mock_run):
+        """Test URI fallback returns False when xdg-open fails."""
+        from obsidian_clipper.cli.main import _save_via_uri
+
+        mock_run.return_value = MagicMock(returncode=1)
+
+        session = CaptureSession(text="Hello world")
+        result = _save_via_uri(session)
+
+        assert result is False
+
+    @patch("obsidian_clipper.cli.main.subprocess.run", side_effect=FileNotFoundError)
+    def test_save_via_uri_no_xdg_open(self, mock_run):
+        """Test URI fallback returns False when xdg-open not found."""
+        from obsidian_clipper.cli.main import _save_via_uri
+
+        session = CaptureSession(text="Hello")
+        result = _save_via_uri(session)
+
+        assert result is False
+
+    def test_save_via_uri_empty_content(self):
+        """Test URI fallback returns False for empty session."""
+        from obsidian_clipper.cli.main import _save_via_uri
+
+        session = CaptureSession()
+        result = _save_via_uri(session)
+
+        assert result is False

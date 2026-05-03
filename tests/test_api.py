@@ -529,3 +529,98 @@ class TestObsidianClient:
         call_args = mock_session_instance.request.call_args
         assert call_args[0][0] == "PUT"
         assert "text/markdown" in str(call_args)
+
+
+class TestSearchAPI:
+    """Tests for search, tags, and directory listing methods."""
+
+    @pytest.fixture
+    def client(self):
+        config = Config(api_key="testkey1234567890", _loaded=True)
+        return ObsidianClient(config)
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_search_returns_results(self, mock_session, client):
+        """Test structured search returns matching results."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {"filename": "Notes/Test.md", "matches": [{"match": "hello", "context": "hello world"}]}
+        ]
+        mock_response.text = '[{"filename": "Notes/Test.md"}]'
+        mock_session.return_value.request.return_value = mock_response
+
+        results = client.search("hello")
+        assert len(results) == 1
+        assert results[0]["filename"] == "Notes/Test.md"
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_search_empty_results(self, mock_session, client):
+        """Test search with no matches returns empty list."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mock_response.text = "[]"
+        mock_session.return_value.request.return_value = mock_response
+
+        results = client.search("nonexistent")
+        assert results == []
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_search_connection_error(self, mock_session, client):
+        """Test search returns empty list on connection error."""
+        mock_session_instance = MagicMock()
+        mock_session_instance.request.side_effect = requests.exceptions.ConnectionError()
+        mock_session.return_value = mock_session_instance
+
+        results = client.search("query")
+        assert results == []
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_search_simple_returns_paths(self, mock_session, client):
+        """Test simple search returns file paths."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = ["Notes/A.md", "Notes/B.md"]
+        mock_response.text = '["Notes/A.md"]'
+        mock_session.return_value.request.return_value = mock_response
+
+        results = client.search_simple("test query")
+        assert len(results) == 2
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_get_tags_returns_dict(self, mock_session, client):
+        """Test get_tags returns tag dict."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"research": {"count": 5}, "reading": {"count": 3}}
+        mock_response.text = '{"research": {"count": 5}}'
+        mock_session.return_value.request.return_value = mock_response
+
+        tags = client.get_tags()
+        assert "research" in tags
+        assert tags["research"]["count"] == 5
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_list_directory_root(self, mock_session, client):
+        """Test listing root vault directory."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"files": ["Notes/", "Templates/", "README.md"]}
+        mock_response.text = '{"files": []}'
+        mock_session.return_value.request.return_value = mock_response
+
+        files = client.list_directory()
+        assert "README.md" in files
+
+    @patch("obsidian_clipper.obsidian.api.requests.Session")
+    def test_list_directory_subpath(self, mock_session, client):
+        """Test listing a subdirectory."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"files": ["Note1.md", "Note2.md"]}
+        mock_response.text = '{"files": []}'
+        mock_session.return_value.request.return_value = mock_response
+
+        files = client.list_directory("Notes")
+        assert len(files) == 2

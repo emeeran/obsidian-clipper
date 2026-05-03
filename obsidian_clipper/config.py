@@ -149,11 +149,60 @@ PROFILES: dict[str, dict[str, str | bool | int]] = {
 }
 
 
+def _load_user_profiles() -> dict[str, dict[str, str | bool | int]]:
+    """Load user-defined profiles from ~/.config/obsidian-clipper/profiles.toml."""
+    config_path = Path.home() / ".config" / "obsidian-clipper" / "profiles.toml"
+    if not config_path.exists():
+        return {}
+
+    try:
+        try:
+            import tomllib  # type: ignore[import-not-found]
+        except ImportError:
+            import tomli as tomllib  # type: ignore[import-not-found]
+
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        logger.warning("Failed to load user profiles from %s: %s", config_path, e)
+        return {}
+
+    profiles: dict[str, dict[str, str | bool | int]] = {}
+    raw_profiles = data.get("profiles", data)
+    if not isinstance(raw_profiles, dict):
+        return profiles
+
+    for name, values in raw_profiles.items():
+        if not isinstance(values, dict):
+            continue
+        profile: dict[str, str | bool | int] = {}
+        if "tags" in values:
+            profile["tags"] = str(values["tags"])
+        if "note" in values:
+            profile["note"] = str(values["note"])
+        if "ocr" in values:
+            profile["ocr"] = bool(values["ocr"])
+        if "append" in values:
+            profile["append"] = bool(values["append"])
+        if profile:
+            profiles[name] = profile
+
+    return profiles
+
+
+def _all_profiles() -> dict[str, dict[str, str | bool | int]]:
+    """Get built-in + user-defined profiles merged."""
+    merged = dict(PROFILES)
+    merged.update(_load_user_profiles())
+    return merged
+
+
 def get_profile(name: str) -> dict[str, str | bool | int]:
     """Get a capture profile, with optional env overrides."""
-    profile = PROFILES.get(name)
+    all_profiles = _all_profiles()
+    profile = all_profiles.get(name)
     if profile is None:
-        raise ValueError(f"Unknown profile '{name}'. Available: {', '.join(sorted(PROFILES))}")
+        raise ValueError(f"Unknown profile '{name}'. Available: {', '.join(sorted(all_profiles))}")
 
     env_prefix = f"OBSIDIAN_PROFILE_{name.upper()}_"
     overrides: dict[str, str | bool | int] = {}

@@ -179,6 +179,93 @@ class ObsidianClient:
             logger.error("Failed to read image file: %s", e)
             return False
 
+    def search(self, query: str, **kwargs: Any) -> list[dict]:
+        """Search vault using structured search.
+
+        Args:
+            query: Search query string.
+            **kwargs: Additional search parameters (e.g., context_length).
+
+        Returns:
+            List of search result dicts with 'filename', 'matches', etc.
+        """
+        try:
+            url = f"{self.config.base_url}/search/"
+            body = {"query": query, **kwargs}
+            response = self._execute_request(
+                "POST", url,
+                headers={**self.config.headers, "Content-Type": "application/json"},
+                json=body,
+            )
+            if response.status_code == 200:
+                return response.json() if response.text.strip() else []
+            return []
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Search failed: %s", e)
+            return []
+
+    def search_simple(self, query: str) -> list[str]:
+        """Simple text search returning matching file paths.
+
+        Args:
+            query: Search query string.
+
+        Returns:
+            List of matching file paths.
+        """
+        try:
+            encoded_query = quote(query, safe="")
+            url = f"{self.config.base_url}/search/simple/?query={encoded_query}"
+            response = self._execute_request("GET", url)
+            if response.status_code == 200:
+                return response.json() if response.text.strip() else []
+            return []
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Simple search failed: %s", e)
+            return []
+
+    def get_tags(self) -> dict[str, dict]:
+        """List all tags in the vault with metadata.
+
+        Returns:
+            Dict mapping tag names to metadata dicts.
+        """
+        try:
+            url = f"{self.config.base_url}/tags/"
+            response = self._execute_request("GET", url)
+            if response.status_code == 200:
+                return response.json() if response.text.strip() else {}
+            return {}
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Failed to get tags: %s", e)
+            return {}
+
+    def list_directory(self, path: str = "") -> list[str]:
+        """List files in a vault directory.
+
+        Args:
+            path: Directory path (empty string for root).
+
+        Returns:
+            List of file paths in the directory.
+        """
+        try:
+            safe_path = validate_path(path)
+            url = self._build_url(safe_path) if safe_path else f"{self.config.base_url}/vault/"
+            # Ensure trailing slash for directory listing
+            if not url.endswith("/"):
+                url += "/"
+            response = self._execute_request("GET", url)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict):
+                    return list(data.get("files", []))
+                return list(data)
+            return []
+        except (APIConnectionError, APIRequestError) as e:
+            logger.error("Failed to list directory: %s", e)
+            return []
+
     def close(self) -> None:
         if self._session:
             self._session.close()

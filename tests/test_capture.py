@@ -18,6 +18,7 @@ from obsidian_clipper.capture import (
     parse_code_editor_citation,
     parse_epub_citation,
     parse_generic_citation,
+    parse_jetbrains_citation,
     parse_pdf_citation,
     take_screenshot,
 )
@@ -132,6 +133,39 @@ class TestCitationParsing:
     def test_parse_browser_citation_no_match(self):
         """Test when window title doesn't match browser pattern."""
         citation = parse_browser_citation("Document.pdf — Page 42")
+        assert citation is None
+
+    def test_parse_jetbrains_citation_intellij(self):
+        """Test parsing IntelliJ IDEA citation."""
+        citation = parse_jetbrains_citation(
+            "Main.java — my-project — IntelliJ IDEA"
+        )
+        assert citation is not None
+        assert citation.title == "Main.java"
+        assert citation.source == "IntelliJ IDEA"
+        assert citation.extra.get("project") == "my-project"
+
+    def test_parse_jetbrains_citation_pycharm(self):
+        """Test parsing PyCharm citation."""
+        citation = parse_jetbrains_citation(
+            "app.py — backend — PyCharm"
+        )
+        assert citation is not None
+        assert citation.title == "app.py"
+        assert citation.source == "PyCharm"
+
+    def test_parse_jetbrains_citation_webstorm(self):
+        """Test parsing WebStorm citation."""
+        citation = parse_jetbrains_citation(
+            "index.tsx — frontend — WebStorm"
+        )
+        assert citation is not None
+        assert citation.title == "index.tsx"
+        assert citation.source == "WebStorm"
+
+    def test_parse_jetbrains_citation_no_match(self):
+        """Test when window title doesn't match JetBrains pattern."""
+        citation = parse_jetbrains_citation("main.py - myproject - Visual Studio Code")
         assert citation is None
 
     def test_parse_code_editor_citation_vscode(self):
