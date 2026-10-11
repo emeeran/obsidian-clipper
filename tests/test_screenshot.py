@@ -13,6 +13,7 @@ from obsidian_clipper.capture.screenshot import (
     _capture_with_flameshot,
     _capture_with_flameshot_raw,
     _capture_with_grim,
+    _preprocess_for_ocr,
     _save_clipboard_image,
     _tsv_to_text_conf,
     _wait_for_file,
@@ -458,6 +459,36 @@ class TestCaptureWithGrim:
         result = _capture_with_grim("/tmp/test.png")
 
         assert result is False
+
+
+class TestPreprocessForOcr:
+    """Tests for _preprocess_for_ocr."""
+
+    def test_dark_image_is_inverted(self, tmp_path):
+        """Dark-mode screenshots get inverted to dark-text-on-light for OCR."""
+        from PIL import Image, ImageStat
+
+        img_file = tmp_path / "dark.png"
+        Image.new("L", (50, 50), 20).save(img_file)
+
+        out = _preprocess_for_ocr(img_file)
+
+        with Image.open(out) as processed:
+            assert ImageStat.Stat(processed).mean[0] > 128
+        out.unlink(missing_ok=True)
+
+    def test_light_image_stays_light(self, tmp_path):
+        """Already-light images are not inverted."""
+        from PIL import Image, ImageStat
+
+        img_file = tmp_path / "light.png"
+        Image.new("L", (50, 50), 240).save(img_file)
+
+        out = _preprocess_for_ocr(img_file)
+
+        with Image.open(out) as processed:
+            assert ImageStat.Stat(processed).mean[0] > 128
+        out.unlink(missing_ok=True)
 
 
 class TestTsvToTextConf:

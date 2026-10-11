@@ -224,8 +224,7 @@ class CaptureSession:
         lowercase (or the prior line hyphen-breaks a word), even across blank
         lines, which tesseract emits as spacing noise rather than paragraph
         breaks. Wraps at capital starts stay split; columnar screenshots
-        (terminal tables) won't reflow. Real fix would be layout-aware OCR
-        (--psm on the image, not text post-processing).
+        (terminal tables) are handled upstream by the PSM-confidence pick.
         """
         out: list[str] = []
         gap = False

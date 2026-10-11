@@ -277,7 +277,7 @@ def _preprocess_for_ocr(img_path: Path) -> Path:
         Path to the preprocessed image (or original on failure).
     """
     try:
-        from PIL import Image, ImageEnhance, ImageFilter
+        from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageStat
     except ImportError:
         return img_path
 
@@ -286,6 +286,12 @@ def _preprocess_for_ocr(img_path: Path) -> Path:
             # Convert to grayscale for cleaner OCR
             if img.mode != "L":
                 img = img.convert("L")  # type: ignore[assignment]
+
+            # Dark-mode screenshots OCR badly as light-on-dark; tesseract
+            # wants dark text on light. ponytail: whole-image luminance mean
+            # decides inversion — mixed images would need real layout analysis.
+            if ImageStat.Stat(img).mean[0] < 128:
+                img = ImageOps.invert(img)  # type: ignore[assignment]
 
             # Increase contrast
             enhancer = ImageEnhance.Contrast(img)
