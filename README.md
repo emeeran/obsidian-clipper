@@ -187,6 +187,7 @@ directory, then `~/.config/obsidian-clipper/.env`. See the
 | `OBSIDIAN_VERIFY_SSL`     | `true`                       | Verify TLS certificates                      |
 | `OBSIDIAN_TIMEOUT`        | `10`                         | API request timeout (seconds)                |
 | `OBSIDIAN_OCR_LANGUAGE`   | `eng`                        | Tesseract OCR language (`eng+deu` supported) |
+| `OBSIDIAN_OCR_PSM`        | auto                         | Pin Tesseract page-segmentation mode (auto = try 3 and 6, keep best) |
 | `LOG_FILE`                | —                            | Optional rotating log file                   |
 | `LOG_FORMAT`              | `text`                       | `json` for structured logs                   |
 

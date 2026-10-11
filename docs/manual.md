@@ -171,6 +171,7 @@ All configuration is done via environment variables or `.env` files.
 | `OBSIDIAN_VERIFY_SSL` | bool | `true` | Verify TLS certificates. Set `false` for self-signed certs. |
 | `OBSIDIAN_TIMEOUT` | int | `10` | API request timeout (seconds). |
 | `OBSIDIAN_OCR_LANGUAGE` | string | `eng` | Tesseract language code. Supports combos: `eng+deu`. |
+| `OBSIDIAN_OCR_PSM` | int | auto | Pin Tesseract page-segmentation mode (e.g. `6`). Default tries 3 and 6, keeping the higher-confidence result. |
 | `OBSIDIAN_VAULT_NAME` | string | — | Vault name used by the `obsidian://` URI fallback. |
 | `LOG_FILE` | path | — | Optional log file (rotated, 5 MB × 3). |
 | `LOG_FORMAT` | string | `text` | Set to `json` for structured JSON log lines. |
